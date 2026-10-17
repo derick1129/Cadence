@@ -1,5 +1,6 @@
 """Core application configuration, errors, and shared utilities."""
 
+from backend.app.core.base import Base, TimestampMixin
 from backend.app.core.errors import AppError, app_error_handler
 from backend.app.core.security import (
     SecurityError,
@@ -17,8 +18,10 @@ from backend.app.core.settings import Settings, settings
 
 __all__ = [
     "AppError",
+    "Base",
     "SecurityError",
     "Settings",
+    "TimestampMixin",
     "TokenExpiredError",
     "TokenInvalidError",
     "app_error_handler",
