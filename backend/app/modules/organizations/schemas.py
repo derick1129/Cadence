@@ -12,6 +12,8 @@ class OrgCreate(BaseModel):
     """Payload to create an organization."""
 
     name: str
+    plan_id: str = "free"
+    stripe_customer_id: str | None = None
 
 
 class OrgResponse(BaseModel):
@@ -19,7 +21,8 @@ class OrgResponse(BaseModel):
 
     id: str
     name: str
-    plan_id: str | None = None
+    plan_id: str | None = "free"
+    stripe_customer_id: str | None = None
     created_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -38,7 +41,7 @@ class MemberResponse(BaseModel):
     id: str
     user_id: str
     organization_id: str
-    email: str
+    email: str = ""
     role: OrgRole
 
     model_config = ConfigDict(from_attributes=True)
