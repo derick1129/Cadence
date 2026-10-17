@@ -1,7 +1,21 @@
 import * as React from "react";
 import Link from "next/link";
 import { Hero } from "@/components/marketing/hero";
-import { ArrowRight, AudioWaveform, ShieldCheck, GitBranch, PhoneForwarded, Lock } from "lucide-react";
+import { BentoGrid, BentoGridItem } from "@/components/ui/bento-grid";
+import { CardSpotlight } from "@/components/ui/card-spotlight";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  ArrowRight,
+  AudioWaveform,
+  ShieldCheck,
+  GitBranch,
+  PhoneForwarded,
+  Lock,
+  Layers,
+  Wrench,
+  Radio,
+} from "lucide-react";
 
 const providers = [
   "LiveKit",
@@ -39,9 +53,10 @@ export default function MarketingPage() {
         </div>
       </section>
 
-      {/* Features: Bento Grid */}
+      {/* Features: Aceternity Bento Grid */}
       <section id="features" className="max-w-6xl mx-auto px-6">
         <div className="max-w-2xl mb-14 md:mb-20 space-y-4">
+          <Badge variant="outline" className="mb-2">Platform Capabilities</Badge>
           <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-[var(--fg)] font-heading leading-tight">
             Built for real conversations, not phone menus.
           </h2>
@@ -51,143 +66,142 @@ export default function MarketingPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
-          {/* Card 1: Interrupt handling (Wide) */}
-          <div className="md:col-span-4 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-8 shadow-xs hover:border-[var(--muted)]/40 transition-colors space-y-4 flex flex-col justify-between">
-            <div className="space-y-2">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center text-[var(--fg)] mb-4">
-                <AudioWaveform className="w-4 h-4" />
+        <BentoGrid>
+          {/* Card 1: Interrupt handling (Wide with Spotlight) */}
+          <CardSpotlight className="md:col-span-4 flex flex-col justify-between space-y-4">
+            <div className="space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center text-[var(--fg)] mb-2 shadow-2xs">
+                <AudioWaveform className="w-5 h-5 text-[var(--accent)]" />
               </div>
-              <h3 className="text-xl font-bold font-heading text-[var(--fg)]">
+              <h3 className="text-xl md:text-2xl font-bold font-heading text-[var(--fg)]">
                 Interrupt it. It stops and listens.
               </h3>
               <p className="text-sm text-[var(--muted)] leading-relaxed max-w-lg">
-                Callers talk over agents all the time. Cadence cancels the reply
-                mid-sentence and answers what was just said without lag.
+                Callers talk over agents all the time. Cadence cancels the speech reply
+                mid-sentence and answers what was just said without perceived lag.
               </p>
             </div>
-            <div className="pt-4 flex items-center gap-1.5 text-xs text-[var(--accent)] font-medium font-mono">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
-              <span>Instant speech cancellation & barge-in detection</span>
+            <div className="pt-4 flex items-center gap-2 text-xs text-[var(--accent)] font-medium font-mono">
+              <span className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
+              <span>Instant speech cancellation & barge-in detection (&lt; 200ms)</span>
             </div>
-          </div>
+          </CardSpotlight>
 
           {/* Card 2: Two doors */}
-          <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-8 shadow-xs hover:border-[var(--muted)]/40 transition-colors space-y-4 flex flex-col justify-between">
-            <div className="space-y-2">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center text-[var(--fg)] mb-4">
-                <PhoneForwarded className="w-4 h-4" />
+          <BentoGridItem
+            className="md:col-span-2"
+            icon={
+              <div className="w-10 h-10 rounded-xl bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center text-[var(--fg)] shadow-2xs">
+                <PhoneForwarded className="w-5 h-5" />
               </div>
-              <h3 className="text-xl font-bold font-heading text-[var(--fg)]">
-                One agent, two doors
-              </h3>
-              <p className="text-sm text-[var(--muted)] leading-relaxed">
-                The same agent answers a phone number or a call button on your
-                site with identical capabilities and voice identity.
-              </p>
-            </div>
-            <div className="text-xs text-[var(--muted)]">WebRTC + SIP Trunking</div>
-          </div>
+            }
+            title="One agent, two doors"
+            description="The same agent answers a phone number via SIP trunking or an in-browser WebRTC call button with identical voice identity."
+            footer={
+              <Badge variant="outline" className="text-xs">
+                WebRTC + SIP
+              </Badge>
+            }
+          />
 
           {/* Card 3: Mid-call actions */}
-          <div className="md:col-span-3 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-8 shadow-xs hover:border-[var(--muted)]/40 transition-colors space-y-4">
-            <h3 className="text-xl font-bold font-heading text-[var(--fg)]">
-              Does things mid-call
-            </h3>
-            <p className="text-sm text-[var(--muted)] leading-relaxed">
-              Check a calendar, call your API, or hand the call to a person.
-            </p>
-            <div className="flex flex-wrap gap-2 pt-2">
-              <span className="px-3 py-1 rounded-full border border-[var(--line)] bg-[var(--bg)] text-xs text-[var(--fg)]">
-                Check calendar
-              </span>
-              <span className="px-3 py-1 rounded-full border border-[var(--line)] bg-[var(--bg)] text-xs text-[var(--fg)]">
-                Book appointment
-              </span>
-              <span className="px-3 py-1 rounded-full border border-[var(--line)] bg-[var(--bg)] text-xs text-[var(--fg)]">
-                Transfer
-              </span>
-            </div>
-          </div>
+          <BentoGridItem
+            className="md:col-span-3"
+            icon={
+              <div className="w-10 h-10 rounded-xl bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center text-[var(--fg)] shadow-2xs">
+                <Wrench className="w-5 h-5" />
+              </div>
+            }
+            title="Does things mid-call"
+            description="Check live calendar availability, invoke your backend API, or gracefully hand off the caller to a team member."
+            footer={
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <Badge variant="secondary">Check calendar</Badge>
+                <Badge variant="secondary">Book slot</Badge>
+                <Badge variant="secondary">Transfer call</Badge>
+              </div>
+            }
+          />
 
-          {/* Card 4: Full Audit Records (Wide) */}
-          <div className="md:col-span-3 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-8 shadow-xs hover:border-[var(--muted)]/40 transition-colors space-y-4">
-            <h3 className="text-xl font-bold font-heading text-[var(--fg)]">
-              Every call on record
-            </h3>
-            <p className="text-sm text-[var(--muted)] leading-relaxed">
-              Listen back to the audio, read the transcript, and see how long
-              each reply took. Tool calls are logged, so you can see what the
-              agent did and when.
-            </p>
-          </div>
+          {/* Card 4: Full Audit Records */}
+          <BentoGridItem
+            className="md:col-span-3"
+            icon={
+              <div className="w-10 h-10 rounded-xl bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center text-[var(--fg)] shadow-2xs">
+                <Radio className="w-5 h-5 text-[var(--accent)]" />
+              </div>
+            }
+            title="Every call on record"
+            description="Listen to raw audio recordings, inspect timestamped transcripts, and audit tool invocations with millisecond latency metrics."
+            footer={
+              <Badge variant="accent" className="text-xs">
+                Full session audit trail
+              </Badge>
+            }
+          />
 
           {/* Card 5: Safe edits */}
-          <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-8 shadow-xs hover:border-[var(--muted)]/40 transition-colors space-y-3">
-            <div className="w-8 h-8 rounded-lg bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center text-[var(--fg)] mb-2">
-              <GitBranch className="w-4 h-4" />
-            </div>
-            <h3 className="text-lg font-bold font-heading text-[var(--fg)]">
-              Safe edits
-            </h3>
-            <p className="text-xs text-[var(--muted)] leading-relaxed">
-              Each save is a new version. A live call never changes halfway through.
-            </p>
-          </div>
+          <BentoGridItem
+            className="md:col-span-2"
+            icon={
+              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center text-[var(--fg)]">
+                <GitBranch className="w-4 h-4" />
+              </div>
+            }
+            title="Safe edits"
+            description="Each prompt or configuration change generates an immutable version. Active calls are pinned to their starting version."
+          />
 
           {/* Card 6: Knowledge Base */}
-          <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-8 shadow-xs hover:border-[var(--muted)]/40 transition-colors space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs px-2 py-0.5 rounded-full border border-[var(--line)] bg-[var(--bg)] text-[var(--muted)] font-medium">
-                Coming soon
-              </span>
-            </div>
-            <h3 className="text-lg font-bold font-heading text-[var(--fg)]">
-              Your company’s knowledge
-            </h3>
-            <p className="text-xs text-[var(--muted)] leading-relaxed">
-              Upload documents so the agent answers from your own material.
-            </p>
-          </div>
+          <BentoGridItem
+            className="md:col-span-2"
+            icon={
+              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center text-[var(--fg)]">
+                <Layers className="w-4 h-4" />
+              </div>
+            }
+            title="Company knowledge"
+            description="Upload PDFs, guidelines, and manuals so agents answer with high precision from your proprietary docs."
+            footer={<Badge variant="outline">Coming soon</Badge>}
+          />
 
           {/* Card 7: Outbound campaigns */}
-          <div className="md:col-span-2 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-8 shadow-xs hover:border-[var(--muted)]/40 transition-colors space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs px-2 py-0.5 rounded-full border border-[var(--line)] bg-[var(--bg)] text-[var(--muted)] font-medium">
-                Coming soon
-              </span>
-            </div>
-            <h3 className="text-lg font-bold font-heading text-[var(--fg)]">
-              Outbound campaigns
-            </h3>
-            <p className="text-xs text-[var(--muted)] leading-relaxed">
-              Call a contact list within the hours you set, with consent checks built in.
-            </p>
-          </div>
+          <BentoGridItem
+            className="md:col-span-2"
+            icon={
+              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center text-[var(--fg)]">
+                <PhoneForwarded className="w-4 h-4" />
+              </div>
+            }
+            title="Outbound campaigns"
+            description="Schedule automated outreach with built-in consent enforcement, time-window controls, and retry rules."
+            footer={<Badge variant="outline">Coming soon</Badge>}
+          />
 
           {/* Card 8: Tenancy Isolation */}
-          <div className="md:col-span-6 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-6 shadow-xs flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center text-[var(--accent)] shrink-0">
-                <Lock className="w-4 h-4" />
+          <CardSpotlight className="md:col-span-6 p-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-[var(--bg)] border border-[var(--line)] flex items-center justify-center text-[var(--accent)] shrink-0 shadow-2xs">
+                <Lock className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-base font-bold font-heading text-[var(--fg)]">
-                  Separate by organization
+                  Strict multi-tenant isolation
                 </h3>
                 <p className="text-xs text-[var(--muted)]">
-                  Each team’s agents, calls and recordings are strictly isolated with tenant-scoped encryption.
+                  Every agent, telephony number, recording, and transcript is scoped by organization ID with zero cross-tenant access.
                 </p>
               </div>
             </div>
-            <ShieldCheck className="w-5 h-5 text-[var(--accent)] shrink-0 hidden sm:block" />
-          </div>
-        </div>
+            <ShieldCheck className="w-6 h-6 text-[var(--accent)] shrink-0 hidden sm:block" />
+          </CardSpotlight>
+        </BentoGrid>
       </section>
 
       {/* How It Works: 3 Steps */}
       <section id="how" className="max-w-6xl mx-auto px-6">
         <div className="max-w-2xl mb-14 md:mb-20 space-y-4">
+          <Badge variant="outline" className="mb-2">Setup Flow</Badge>
           <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-[var(--fg)] font-heading leading-tight">
             From idea to a ringing phone in an afternoon.
           </h2>
@@ -203,8 +217,7 @@ export default function MarketingPage() {
               Describe the job
             </h3>
             <p className="text-sm text-[var(--muted)] leading-relaxed">
-              Write what the agent should do, pick a voice, and attach the tools
-              it can use.
+              Write what the agent should do, select models and voice providers, and attach the tools it can invoke.
             </p>
           </div>
 
@@ -217,7 +230,7 @@ export default function MarketingPage() {
               Talk to it in your browser
             </h3>
             <p className="text-sm text-[var(--muted)] leading-relaxed">
-              Start a test call, interrupt it, and adjust until it sounds right.
+              Start an instant WebRTC test call, interrupt mid-speech, and adjust prompting until it sounds completely natural.
             </p>
           </div>
 
@@ -230,7 +243,7 @@ export default function MarketingPage() {
               Connect a number
             </h3>
             <p className="text-sm text-[var(--muted)] leading-relaxed">
-              Point a phone number at the agent and review every call afterward.
+              Assign an inbound phone number or trigger outbound dispatch, and monitor every live call with detailed recording metrics.
             </p>
           </div>
         </div>
@@ -238,26 +251,25 @@ export default function MarketingPage() {
 
       {/* Final Call to Action */}
       <section id="start" className="max-w-6xl mx-auto px-6">
-        <div className="rounded-3xl border border-[var(--line)] bg-[var(--card)] py-16 px-8 md:py-24 md:px-16 text-center shadow-lg relative overflow-hidden">
+        <CardSpotlight className="rounded-3xl border border-[var(--line)] bg-[var(--card)] py-16 px-8 md:py-24 md:px-16 text-center shadow-lg relative overflow-hidden">
           <div className="max-w-xl mx-auto space-y-6 relative z-10">
             <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-[var(--fg)] font-heading leading-tight">
               Hear your agent before you commit.
             </h2>
             <p className="text-base md:text-lg text-[var(--muted)] leading-relaxed">
-              Create one in minutes and talk to it from your browser. No phone
-              number needed to start.
+              Create an agent in minutes and talk to it from your browser. No phone
+              number or credit card needed to test.
             </p>
             <div className="pt-2">
-              <Link
-                href="/register"
-                className="inline-flex items-center justify-center gap-2 h-12 px-8 rounded-xl bg-[#0A0A0A] text-white hover:bg-[#262626] dark:bg-[#EDEDED] dark:text-[#0A0A0A] dark:hover:bg-white text-base font-semibold transition-transform active:scale-98 shadow-md"
-              >
-                <span>Start free</span>
-                <ArrowRight className="w-4 h-4" />
+              <Link href="/register">
+                <Button size="lg" className="rounded-xl px-8 h-12 text-base gap-2">
+                  <span>Start free</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
               </Link>
             </div>
           </div>
-        </div>
+        </CardSpotlight>
       </section>
     </div>
   );

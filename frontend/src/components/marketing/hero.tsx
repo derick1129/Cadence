@@ -3,39 +3,31 @@
 import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, Play, Wrench, CheckCircle2 } from "lucide-react";
+import { BackgroundBeams } from "@/components/ui/background-beams";
+import { TextGenerateEffect } from "@/components/ui/text-generate-effect";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export function Hero() {
   return (
     <section className="relative overflow-hidden pt-20 pb-24 md:pt-28 md:pb-36 border-b border-[var(--line)]">
-      {/* Background subtle grid pattern */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-40 dark:opacity-25"
-        style={{
-          backgroundImage:
-            "linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px)",
-          backgroundSize: "44px 44px",
-          maskImage:
-            "radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 80%)",
-          WebkitMaskImage:
-            "radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 80%)",
-        }}
-        aria-hidden="true"
-      />
+      {/* Aceternity Background Beams */}
+      <BackgroundBeams />
 
       <div className="max-w-6xl mx-auto px-6 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
           {/* Left Column: Headline and Call-to-actions */}
           <div className="lg:col-span-7 space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--line)] bg-[var(--card)] text-xs font-medium text-[var(--muted)] shadow-xs">
+            <Badge variant="outline" className="gap-2 py-1.5 px-3 bg-[var(--card)]/80 backdrop-blur-xs">
               <span
                 className="w-2 h-2 rounded-full bg-[var(--accent)] motion-safe:animate-pulse"
                 aria-hidden="true"
               />
-              <span>Phone and browser voice agents</span>
-            </div>
+              <span className="text-[var(--muted)] font-medium">Phone and browser voice agents</span>
+            </Badge>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-[var(--fg)] font-heading leading-[1.08]">
-              Voice agents that answer your calls
+              <TextGenerateEffect words="Voice agents that answer your calls" />
             </h1>
 
             <p className="text-base sm:text-lg text-[var(--muted)] max-w-xl leading-relaxed">
@@ -45,20 +37,18 @@ export function Hero() {
             </p>
 
             <div className="flex flex-wrap items-center gap-4 pt-2">
-              <Link
-                href="/register"
-                className="inline-flex items-center justify-center gap-2 h-11 px-6 rounded-xl bg-[#0A0A0A] text-white hover:bg-[#262626] dark:bg-[#EDEDED] dark:text-[#0A0A0A] dark:hover:bg-white text-sm font-semibold transition-transform active:scale-98 shadow-sm"
-              >
-                <span>Start free</span>
-                <ArrowRight className="w-4 h-4" />
+              <Link href="/register">
+                <Button size="lg" className="rounded-xl px-6 gap-2">
+                  <span>Start free</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
               </Link>
 
-              <Link
-                href="#how"
-                className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-xl border border-[var(--line)] bg-[var(--card)] text-[var(--fg)] hover:bg-[var(--line)] text-sm font-semibold transition-colors shadow-2xs"
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                <span>See how it works</span>
+              <Link href="#how">
+                <Button variant="secondary" size="lg" className="rounded-xl px-5 gap-2">
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  <span>See how it works</span>
+                </Button>
               </Link>
             </div>
 
@@ -81,7 +71,7 @@ export function Hero() {
           {/* Right Column: Live Call Preview Card Illustration */}
           <div className="lg:col-span-5">
             <div
-              className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-6 shadow-2xl space-y-4 relative"
+              className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-6 shadow-2xl space-y-4 relative backdrop-blur-xs"
               aria-label="Example live call illustration"
             >
               {/* Card Header */}
@@ -92,13 +82,13 @@ export function Hero() {
                   </span>
                   <span className="text-[var(--muted)]">· Inbound</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[var(--accent)] font-semibold">
+                <Badge variant="accent" className="gap-1.5 font-semibold">
                   <span
-                    className="w-2 h-2 rounded-full bg-[var(--accent)] motion-safe:animate-pulse"
+                    className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] motion-safe:animate-pulse"
                     aria-hidden="true"
                   />
                   <span>Live call</span>
-                </div>
+                </Badge>
               </div>
 
               {/* Live Waveform Indicator */}
