@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict
 
 OrgRole = Literal["owner", "admin", "member"]
 
@@ -28,7 +28,7 @@ class OrgResponse(BaseModel):
 class MemberInvite(BaseModel):
     """Payload to invite a new member to an organization."""
 
-    email: EmailStr
+    email: str
     role: OrgRole = "member"
 
 
@@ -38,7 +38,7 @@ class MemberResponse(BaseModel):
     id: str
     user_id: str
     organization_id: str
-    email: EmailStr
+    email: str
     role: OrgRole
 
     model_config = ConfigDict(from_attributes=True)

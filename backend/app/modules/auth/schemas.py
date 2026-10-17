@@ -1,12 +1,12 @@
 """Authentication schemas."""
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict
 
 
 class SignupRequest(BaseModel):
     """Payload for user and organization registration."""
 
-    email: EmailStr
+    email: str
     password: str
     organization_name: str | None = None
 
@@ -14,7 +14,7 @@ class SignupRequest(BaseModel):
 class LoginRequest(BaseModel):
     """Payload for user authentication."""
 
-    email: EmailStr
+    email: str
     password: str
 
 
@@ -36,7 +36,7 @@ class UserResponse(BaseModel):
     """Public user profile response."""
 
     id: str
-    email: EmailStr
+    email: str
     is_active: bool = True
 
     model_config = ConfigDict(from_attributes=True)
