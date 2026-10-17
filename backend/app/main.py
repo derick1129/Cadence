@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -24,6 +24,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+api_v1_router = APIRouter(prefix="/api/v1")
+api_v1_router.include_router(auth_router)
+api_v1_router.include_router(organizations_router)
+api_v1_router.include_router(billing_router)
+api_v1_router.include_router(agents_router)
+api_v1_router.include_router(providers_router)
+api_v1_router.include_router(tools_router)
+api_v1_router.include_router(telephony_router)
+api_v1_router.include_router(sessions_router)
+
+app.include_router(api_v1_router)
+
+# Mount root routers for backwards compatibility with test harnesses and frontend rewrites
 app.include_router(auth_router)
 app.include_router(organizations_router)
 app.include_router(billing_router)

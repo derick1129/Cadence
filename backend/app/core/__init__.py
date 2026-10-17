@@ -1,6 +1,7 @@
 """Core application configuration, errors, and shared utilities."""
 
 from backend.app.core.base import Base, TimestampMixin
+from backend.app.core.db import get_db
 from backend.app.core.deps import (
     TokenClaims,
     get_current_tenant_id,
@@ -39,6 +40,7 @@ __all__ = [
     "generate_secure_token",
     "get_current_tenant_id",
     "get_current_user_id",
+    "get_db",
     "get_token_claims",
     "hash_password",
     "hash_token",
