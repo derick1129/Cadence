@@ -119,14 +119,9 @@ class OrganizationService:
 
     async def remove_member(self, user_id: str, organization_id: str) -> bool:
         """Remove membership for a user in an organization."""
-        removed = await self.repository.remove_membership(
+        return await self.repository.remove_membership(
             user_id=user_id, organization_id=organization_id
         )
-        if not removed:
-            removed = await self.repository.remove_membership(
-                user_id=organization_id, organization_id=user_id
-            )
-        return removed
 
     async def get_user_organizations(self, user_id: str) -> list[dict[str, Any]]:
         """Fetch all organization memberships for a user."""

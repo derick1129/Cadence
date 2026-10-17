@@ -8,6 +8,7 @@ dependencies = []
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+extend-exclude = ["docs", ".superpowers"]
 
 [tool.ruff.lint]
 select = [

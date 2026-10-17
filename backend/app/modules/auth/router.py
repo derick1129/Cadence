@@ -1,10 +1,11 @@
 """Authentication router."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.db import get_db
 from backend.app.core.deps import TokenClaims, get_token_claims
+from backend.app.core.errors import AppError
 from backend.app.modules.auth.schemas import (
     LoginRequest,
     RefreshTokenRequest,
@@ -59,8 +60,9 @@ async def get_me(
     """Retrieve profile of the currently authenticated user."""
     user = await service.get_user_by_id(claims.user_id)
     if not user:
-        raise HTTPException(
+        raise AppError(
+            code="USER_NOT_FOUND",
+            message="User not found",
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
         )
     return user

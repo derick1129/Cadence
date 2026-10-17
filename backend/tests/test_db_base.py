@@ -2,11 +2,14 @@
 
 import uuid
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.app.core.base import Base, TimestampMixin
+from backend.app.core.db import get_db
 
 
 class SampleModel(Base, TimestampMixin):
@@ -54,3 +57,40 @@ def test_custom_column_key_mapping() -> None:
     data = instance.to_dict()
     assert data["display_title"] == "default-title"
     assert "id" in data
+
+
+@pytest.mark.asyncio
+async def test_get_db_commit_on_success() -> None:
+    """Verify get_db commits the session when context exits cleanly."""
+    mock_session = AsyncMock()
+    mock_factory = MagicMock()
+    mock_factory.return_value.__aenter__.return_value = mock_session
+    mock_factory.return_value.__aexit__.return_value = None
+
+    with patch("backend.app.core.db.async_session_factory", mock_factory):
+        gen = get_db()
+        session = await gen.asend(None)
+        assert session is mock_session
+        with pytest.raises(StopAsyncIteration):
+            await gen.asend(None)
+
+    mock_session.commit.assert_awaited_once()
+    mock_session.rollback.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_db_rollback_on_exception() -> None:
+    """Verify get_db rolls back the session when an exception occurs."""
+    mock_session = AsyncMock()
+    mock_factory = MagicMock()
+    mock_factory.return_value.__aenter__.return_value = mock_session
+    mock_factory.return_value.__aexit__.return_value = None
+
+    with patch("backend.app.core.db.async_session_factory", mock_factory):
+        gen = get_db()
+        await gen.asend(None)
+        with pytest.raises(RuntimeError, match="DB operation failed"):
+            await gen.athrow(RuntimeError("DB operation failed"))
+
+    mock_session.rollback.assert_awaited_once()
+    mock_session.commit.assert_not_awaited()

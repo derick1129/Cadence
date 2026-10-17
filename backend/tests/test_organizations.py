@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.core.errors import AppError, app_error_handler
 from backend.app.core.security import create_access_token
 from backend.app.modules.organizations.models import Membership, Organization
 from backend.app.modules.organizations.repository import (
@@ -28,6 +29,7 @@ from backend.app.modules.organizations.service import OrganizationService
 def org_app() -> FastAPI:
     """FastAPI test app for organizations module."""
     app = FastAPI(title="Org Test App")
+    app.add_exception_handler(AppError, app_error_handler)  # type: ignore[arg-type]
     app.include_router(org_router)
     shared_service = OrganizationService()
     app.dependency_overrides[get_organization_service] = lambda: shared_service
@@ -95,17 +97,17 @@ async def test_organization_crud_in_memory_or_mock() -> None:
     )
     assert member2.email == "staff@acme.com" and member2.role == "member"
 
-    # 9. Remove member via service (both argument orders supported)
+    # 9. Remove member via service
     removed = await service.remove_member(user_id=user_id, organization_id=org.id)
     assert removed is True
     assert await service.check_user_membership(user_id=user_id, organization_id=org.id) is None
 
-    # Reverse argument order removal
-    removed_second = await service.remove_member(org.id, member2.user_id)
+    # Second member removal
+    removed_second = await service.remove_member(user_id=member2.user_id, organization_id=org.id)
     assert removed_second is True
 
     # Removing non-existent membership returns False
-    assert await service.remove_member("missing-user", org.id) is False
+    assert await service.remove_member(user_id="missing-user", organization_id=org.id) is False
 
 
 @pytest.mark.asyncio
@@ -258,14 +260,21 @@ async def test_backward_compatible_aliases() -> None:
 async def test_organization_router_endpoints(org_app: FastAPI) -> None:
     """Verify organization HTTP endpoints."""
     async with AsyncClient(transport=ASGITransport(app=org_app), base_url="http://test") as client:
-        # Create organization
-        res = await client.post("/organizations", json={"name": "HTTP Org"})
+        # Unauthenticated request is rejected
+        unauth_res = await client.post("/organizations", json={"name": "No Auth Org"})
+        assert unauth_res.status_code == 401
+
+        # Create organization with auth token
+        user_id = str(uuid.uuid4())
+        initial_token = create_access_token(
+            {"sub": user_id, "organization_id": str(uuid.uuid4()), "role": "owner"}
+        )
+        init_headers = {"Authorization": f"Bearer {initial_token}"}
+        res = await client.post("/organizations", json={"name": "HTTP Org"}, headers=init_headers)
         assert res.status_code == 201
         org_id = res.json()["id"]
 
-        token = create_access_token(
-            {"sub": str(uuid.uuid4()), "organization_id": org_id, "role": "owner"}
-        )
+        token = create_access_token({"sub": user_id, "organization_id": org_id, "role": "owner"})
         headers = {"Authorization": f"Bearer {token}"}
 
         # Get organization
@@ -284,6 +293,7 @@ async def test_organization_router_endpoints(org_app: FastAPI) -> None:
         res = await client.get(f"/organizations/{org_id}/members", headers=headers)
         assert res.status_code == 200
         assert any(m["email"] == "colleague@example.com" for m in res.json())
+        assert any(m["role"] == "owner" and m["user_id"] == user_id for m in res.json())
 
         # Get non-existent organization with token matching that id (should 404, not 403)
         bad_id = "non-existent-id"
