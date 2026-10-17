@@ -12,7 +12,7 @@ layers =
     backend.app.modules.agents
     backend.app.modules.providers
     backend.app.modules.billing
-    backend.app.modules.organizations
     backend.app.modules.auth
+    backend.app.modules.organizations
     backend.app.core
 
