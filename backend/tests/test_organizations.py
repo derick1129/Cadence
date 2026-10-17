@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.core.security import create_access_token
 from backend.app.modules.organizations.models import Membership, Organization
 from backend.app.modules.organizations.repository import (
     OrganizationRepository,
@@ -58,50 +59,41 @@ async def test_organization_crud_in_memory_or_mock() -> None:
     org = await service.create_organization(
         OrgCreate(name="Acme Inc", plan_id="pro", stripe_customer_id="cus_123")
     )
-    assert org.name == "Acme Inc"
-    assert org.id is not None
-    assert org.plan_id == "pro"
-    assert org.stripe_customer_id == "cus_123"
+    assert org.name == "Acme Inc" and org.id is not None
+    assert org.plan_id == "pro" and org.stripe_customer_id == "cus_123"
 
     # 2. Add owner member via repo
     user_id = str(uuid.uuid4())
     member = await repo.add_member(
         organization_id=org.id, user_id=user_id, email="owner@acme.com", role="owner"
     )
-    assert member["role"] == "owner"
-    assert member["organization_id"] == org.id
+    assert member["role"] == "owner" and member["organization_id"] == org.id
 
     # 3. List members via service
     members = await service.list_members(org.id)
-    assert len(members) == 1
-    assert members[0].email == "owner@acme.com"
+    assert len(members) == 1 and members[0].email == "owner@acme.com"
 
     # 4. Verify membership query via repo
     membership = await repo.get_membership(user_id=user_id, organization_id=org.id)
-    assert membership is not None
-    assert membership["role"] == "owner"
+    assert membership is not None and membership["role"] == "owner"
 
     # 5. Check role query via service
-    role = await service.check_user_membership(user_id=user_id, organization_id=org.id)
-    assert role == "owner"
+    assert await service.check_user_membership(user_id=user_id, organization_id=org.id) == "owner"
 
     # 6. Get membership via service
-    svc_membership = await service.get_membership(user_id=user_id, organization_id=org.id)
-    assert svc_membership is not None
-    assert svc_membership["role"] == "owner"
+    svc_mem = await service.get_membership(user_id=user_id, organization_id=org.id)
+    assert svc_mem is not None and svc_mem["role"] == "owner"
 
     # 7. Get user organizations via service
     user_orgs = await service.get_user_organizations(user_id=user_id)
-    assert len(user_orgs) == 1
-    assert user_orgs[0]["organization_id"] == org.id
+    assert len(user_orgs) == 1 and user_orgs[0]["organization_id"] == org.id
 
     # 8. Add member via service
     member2 = await service.add_member(
         org_id=org.id,
         data=MemberInvite(email="staff@acme.com", role="member"),
     )
-    assert member2.email == "staff@acme.com"
-    assert member2.role == "member"
+    assert member2.email == "staff@acme.com" and member2.role == "member"
 
     # 9. Remove member via service (both argument orders supported)
     removed = await service.remove_member(user_id=user_id, organization_id=org.id)
@@ -269,30 +261,35 @@ async def test_organization_router_endpoints(org_app: FastAPI) -> None:
         # Create organization
         res = await client.post("/organizations", json={"name": "HTTP Org"})
         assert res.status_code == 201
-        data = res.json()
-        assert data["name"] == "HTTP Org"
-        org_id = data["id"]
+        org_id = res.json()["id"]
+
+        token = create_access_token(
+            {"sub": str(uuid.uuid4()), "organization_id": org_id, "role": "owner"}
+        )
+        headers = {"Authorization": f"Bearer {token}"}
 
         # Get organization
-        res = await client.get(f"/organizations/{org_id}")
-        assert res.status_code == 200
-        assert res.json()["id"] == org_id
+        res = await client.get(f"/organizations/{org_id}", headers=headers)
+        assert res.status_code == 200 and res.json()["id"] == org_id
 
         # Invite member
         res = await client.post(
             f"/organizations/{org_id}/members",
+            headers=headers,
             json={"email": "colleague@example.com", "role": "member"},
         )
-        assert res.status_code == 201
-        assert res.json()["email"] == "colleague@example.com"
+        assert res.status_code == 201 and res.json()["email"] == "colleague@example.com"
 
         # List members
-        res = await client.get(f"/organizations/{org_id}/members")
+        res = await client.get(f"/organizations/{org_id}/members", headers=headers)
         assert res.status_code == 200
-        members = res.json()
-        assert len(members) >= 1
-        assert any(m["email"] == "colleague@example.com" for m in members)
+        assert any(m["email"] == "colleague@example.com" for m in res.json())
 
-        # Get non-existent organization
-        res = await client.get("/organizations/non-existent-id")
+        # Get non-existent organization with token matching that id (should 404, not 403)
+        bad_id = "non-existent-id"
+        bad_tok = create_access_token({"sub": "usr", "organization_id": bad_id, "role": "owner"})
+        res = await client.get(
+            f"/organizations/{bad_id}",
+            headers={"Authorization": f"Bearer {bad_tok}"},
+        )
         assert res.status_code == 404

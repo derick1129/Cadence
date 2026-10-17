@@ -3,6 +3,8 @@
 import uuid
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.app.modules.organizations.repository import OrganizationRepository
 from backend.app.modules.organizations.schemas import (
     MemberInvite,
@@ -15,8 +17,15 @@ from backend.app.modules.organizations.schemas import (
 class OrganizationService:
     """Business logic for organization management and member invites."""
 
-    def __init__(self, repository: OrganizationRepository | None = None) -> None:
-        self.repository = repository or OrganizationRepository()
+    def __init__(
+        self,
+        repository: OrganizationRepository | None = None,
+        session: AsyncSession | None = None,
+    ) -> None:
+        if repository is not None:
+            self.repository = repository
+        else:
+            self.repository = OrganizationRepository(session=session)
 
     async def get_organization(self, org_id: str) -> OrgResponse | None:
         """Fetch organization by org_id."""

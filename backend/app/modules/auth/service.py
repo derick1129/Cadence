@@ -2,6 +2,8 @@
 
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.app.core.errors import AppError
 from backend.app.core.security import (
     create_access_token,
@@ -34,9 +36,17 @@ class AuthService:
         self,
         repository: AuthRepository | None = None,
         org_service: OrganizationService | None = None,
+        session: AsyncSession | None = None,
     ) -> None:
-        self.repository = repository or AuthRepository()
-        self.org_service = org_service or OrganizationService()
+        if repository is not None:
+            self.repository = repository
+        else:
+            self.repository = AuthRepository(session=session)
+
+        if org_service is not None:
+            self.org_service = org_service
+        else:
+            self.org_service = OrganizationService(session=session)
 
     async def signup(self, data: SignupRequest) -> TokenResponse:
         """Register a new user, create initial organization, and issue credentials."""

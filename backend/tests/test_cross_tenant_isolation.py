@@ -1,41 +1,54 @@
 """End-to-end tests verifying tenant isolation and role permissions.
 
-Covers cross-tenant access and RBAC across auth and organizations.
+Covers cross-tenant access, RBAC, and unauthenticated rejections across auth and organizations.
 """
 
 from collections.abc import Generator
-from typing import Any
 
 import pytest
 from httpx import AsyncClient
 
-from backend.app.core.db import get_db
 from backend.app.core.security import create_access_token
 from backend.app.main import app
 from backend.app.modules.auth.repository import AuthRepository
+from backend.app.modules.auth.router import get_auth_service
+from backend.app.modules.auth.service import AuthService
 from backend.app.modules.organizations.repository import OrganizationRepository
-
-
-def _reset_mock_state() -> None:
-    targets: list[tuple[type, str, Any]] = [
-        (OrganizationRepository, "_mock_orgs", {}),
-        (OrganizationRepository, "_mock_members", []),
-        (AuthRepository, "_mock_users", {}),
-        (AuthRepository, "_mock_tokens", {}),
-    ]
-    for cls, attr, default in targets:
-        obj = getattr(cls, attr, default)
-        obj.clear()
+from backend.app.modules.organizations.router import get_organization_service
+from backend.app.modules.organizations.service import OrganizationService
 
 
 @pytest.fixture(autouse=True)
-def reset_repositories() -> Generator[None, None, None]:
-    """Clear in-memory mock repositories and override get_db to None between tests."""
-    _reset_mock_state()
-    app.dependency_overrides[get_db] = lambda: None
+def mock_isolated_services() -> Generator[None, None, None]:
+    """Provide isolated in-memory repositories and services for each test."""
+    org_repo = OrganizationRepository(session=None)
+    org_service = OrganizationService(repository=org_repo)
+    auth_repo = AuthRepository(session=None)
+    auth_service = AuthService(repository=auth_repo, org_service=org_service)
+
+    app.dependency_overrides[get_organization_service] = lambda: org_service
+    app.dependency_overrides[get_auth_service] = lambda: auth_service
     yield
-    app.dependency_overrides.pop(get_db, None)
-    _reset_mock_state()
+    app.dependency_overrides.pop(get_organization_service, None)
+    app.dependency_overrides.pop(get_auth_service, None)
+
+
+@pytest.mark.asyncio
+async def test_unauthenticated_requests_rejected(async_client: AsyncClient) -> None:
+    """Verify that requests without Authorization header to protected endpoints return 401."""
+    org_id = "org-unauth-test"
+
+    res_org = await async_client.get(f"/organizations/{org_id}")
+    assert res_org.status_code == 401
+
+    res_members = await async_client.get(f"/organizations/{org_id}/members")
+    assert res_members.status_code == 401
+
+    res_me = await async_client.get("/organizations/me")
+    assert res_me.status_code == 401
+
+    res_curr_members = await async_client.get("/organizations/members")
+    assert res_curr_members.status_code == 401
 
 
 @pytest.mark.asyncio
