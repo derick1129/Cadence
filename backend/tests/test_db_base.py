@@ -29,3 +29,28 @@ def test_base_metadata_and_attributes() -> None:
     assert instance.created_at.tzinfo == UTC
     assert instance.to_dict()["name"] == "test-item"
     assert "id" in instance.to_dict()
+
+
+class CustomColumnModel(Base, TimestampMixin):
+    """Model with differing Python attribute name and DB column name."""
+
+    __tablename__ = "custom_column_models"
+
+    display_title: Mapped[str] = mapped_column(
+        "title_in_db",
+        String(50),
+        key="display_title",
+        default="default-title",
+    )
+
+
+def test_custom_column_key_mapping() -> None:
+    """Verify that models with differing column name and attribute key
+    work with defaults and to_dict.
+    """
+    instance = CustomColumnModel()
+    assert instance.display_title == "default-title"
+    assert isinstance(instance.id, uuid.UUID)
+    data = instance.to_dict()
+    assert data["display_title"] == "default-title"
+    assert "id" in data

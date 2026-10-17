@@ -19,7 +19,7 @@ class Base(DeclarativeBase):
 
     def to_dict(self) -> dict[str, Any]:
         """Convert mapped attributes into a dictionary."""
-        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+        return {column.key: getattr(self, column.key) for column in self.__table__.columns}
 
 
 @event.listens_for(Base, "init", propagate=True)
@@ -27,15 +27,17 @@ def _init_defaults(target: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -
     """Populate default values on model instantiation if not provided."""
     if hasattr(target, "__table__"):
         for col in target.__table__.columns:
-            if col.name not in kwargs and col.default is not None:
+            if col.key not in kwargs and col.default is not None:
                 arg = col.default.arg
                 if callable(arg):
                     try:
-                        kwargs[col.name] = arg(None)
-                    except Exception:
+                        kwargs[col.key] = arg(None)
+                    except (TypeError, AttributeError):
+                        # Defer evaluation to DB flush if callable default requires
+                        # an execution context.
                         pass
                 elif not hasattr(arg, "__clause_element__"):
-                    kwargs[col.name] = arg
+                    kwargs[col.key] = arg
 
 
 class TimestampMixin:
