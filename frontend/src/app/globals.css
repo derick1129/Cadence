@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #FFFFFF;
+  --fg: #0A0A0A;
+  --muted: #5E5E5E;
+  --card: #FFFFFF;
+  --line: #EAEAEA;
+  --accent: #0A7F5E;
+}
+
+[data-theme="dark"] {
+  --bg: #0A0A0A;
+  --fg: #EDEDED;
+  --muted: #A1A1A1;
+  --card: #111111;
+  --line: #242424;
+  --accent: #3DD9A8;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body), "Hanken Grotesk", sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading), "Bricolage Grotesque", sans-serif;
+  letter-spacing: -0.025em;
+}
