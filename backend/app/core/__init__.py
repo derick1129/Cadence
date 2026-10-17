@@ -1,6 +1,13 @@
 """Core application configuration, errors, and shared utilities."""
 
 from backend.app.core.base import Base, TimestampMixin
+from backend.app.core.deps import (
+    TokenClaims,
+    get_current_tenant_id,
+    get_current_user_id,
+    get_token_claims,
+    require_roles,
+)
 from backend.app.core.errors import AppError, app_error_handler
 from backend.app.core.security import (
     SecurityError,
@@ -22,6 +29,7 @@ __all__ = [
     "SecurityError",
     "Settings",
     "TimestampMixin",
+    "TokenClaims",
     "TokenExpiredError",
     "TokenInvalidError",
     "app_error_handler",
@@ -29,8 +37,12 @@ __all__ = [
     "create_access_token",
     "decode_access_token",
     "generate_secure_token",
+    "get_current_tenant_id",
+    "get_current_user_id",
+    "get_token_claims",
     "hash_password",
     "hash_token",
+    "require_roles",
     "settings",
     "verify_password",
 ]
