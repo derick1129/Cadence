@@ -1,0 +1,18 @@
+[importlinter]
+root_package = backend
+
+[importlinter:contract:modular-boundaries]
+name = Backend module isolation
+type = layers
+layers =
+    backend.app.modules.internal
+    backend.app.modules.sessions
+    backend.app.modules.telephony
+    backend.app.modules.tools
+    backend.app.modules.agents
+    backend.app.modules.providers
+    backend.app.modules.billing
+    backend.app.modules.organizations
+    backend.app.modules.auth
+    backend.app.core
+
