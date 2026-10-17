@@ -33,19 +33,23 @@ describe("MarketingLayout component", () => {
 });
 
 describe("Hero component", () => {
-  it("renders the headline 'Voice agents that answer your calls', subtext, CTAs, and preview card", () => {
+  it("renders headline, background grid, cursor spotlight, waveform, and live call card", () => {
     const html = renderToString(<Hero />);
 
     // Headline
     expect(html).toContain("Voice agents that answer your calls");
     // Subtext
     expect(html).toContain("Cadence builds voice agents that listen");
+    // Background grid & cursor spotlight elements
+    expect(html).toContain('data-testid="hero-grid"');
+    expect(html).toContain('data-testid="hero-spotlight"');
     // Call-to-action buttons
     expect(html).toContain("Start free");
     expect(html).toContain("See how it works");
     // Preview card illustration
     expect(html).toContain("Live call");
     expect(html).toContain("Front desk assistant");
+    expect(html).toContain('data-testid="waveform-bars"');
     expect(html).toContain("Tool: Check calendar");
   });
 });
@@ -56,6 +60,15 @@ describe("MarketingPage component", () => {
 
     // Hero headline
     expect(html).toContain("Voice agents that answer your calls");
+    // Stack marquee strip with continuous loop
+    expect(html).toContain(
+      "Designed to work with the voice stack you choose (example names)"
+    );
+    expect(html).toContain('data-testid="marquee-track"');
+    // Marquee should duplicate providers for infinite slide
+    const livekitMatches = html.match(/LiveKit/g);
+    expect(livekitMatches && livekitMatches.length).toBeGreaterThanOrEqual(2);
+
     // Value proposition bento section
     expect(html).toContain("Built for real conversations, not phone menus");
     expect(html).toContain("Interrupt it. It stops and listens.");

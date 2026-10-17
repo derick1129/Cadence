@@ -9,6 +9,29 @@
   --card: #FFFFFF;
   --line: #EAEAEA;
   --accent: #0A7F5E;
+  --acc: #0A0A0A;
+  --on-acc: #FFFFFF;
+  --mint: #0A7F5E;
+  --glow: rgba(0, 0, 0, 0.06);
+  --grid: rgba(0, 0, 0, 0.05);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0A0A0A;
+    --fg: #EDEDED;
+    --muted: #A1A1A1;
+    --card: #111111;
+    --line: #242424;
+    --accent: #3DD9A8;
+    --acc: #FFFFFF;
+    --on-acc: #0A0A0A;
+    --mint: #3DD9A8;
+    --glow: rgba(255, 255, 255, 0.07);
+    --grid: rgba(255, 255, 255, 0.05);
+    color-scheme: dark;
+  }
 }
 
 [data-theme="dark"] {
@@ -18,12 +41,20 @@
   --card: #111111;
   --line: #242424;
   --accent: #3DD9A8;
+  --acc: #FFFFFF;
+  --on-acc: #0A0A0A;
+  --mint: #3DD9A8;
+  --glow: rgba(255, 255, 255, 0.07);
+  --grid: rgba(255, 255, 255, 0.05);
+  color-scheme: dark;
 }
 
 body {
   background-color: var(--bg);
   color: var(--fg);
   font-family: var(--font-body), "Hanken Grotesk", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 h1,
@@ -32,4 +63,143 @@ h3,
 h4 {
   font-family: var(--font-heading), "Bricolage Grotesque", sans-serif;
   letter-spacing: -0.025em;
+}
+
+/* Animations */
+@keyframes bar {
+  0%, 100% { height: 8px; }
+  50% { height: var(--h, 44px); }
+}
+
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 0 0 var(--glow); }
+  70% { box-shadow: 0 0 0 10px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@keyframes slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes spin {
+  to { --a: 360deg; }
+}
+
+@keyframes spin2 {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@property --a {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* Hero Background Grid & Spotlight */
+.hero-grid-bg {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 30%, #000 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 30%, #000 30%, transparent 80%);
+  pointer-events: none;
+}
+
+.hero-spotlight {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(520px circle at var(--mx, 50%) var(--my, 30%), var(--glow), transparent 70%);
+  pointer-events: none;
+}
+
+/* Voice Stack Marquee */
+.marquee-container {
+  border-block: 1px solid var(--line);
+  padding: 40px 0;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.marquee-track {
+  display: flex;
+  gap: 56px;
+  width: max-content;
+  animation: slide 32s linear infinite;
+  font-family: var(--font-heading), "Bricolage Grotesque", sans-serif;
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* Moving Border Button */
+.moving-border-btn {
+  position: relative;
+  border: 0;
+  padding: 2px;
+  border-radius: 12px;
+  background: conic-gradient(from var(--a, 0deg), transparent 0 60%, var(--acc, #0A0A0A), var(--mint, #0A7F5E), transparent 90%);
+  animation: spin 3.5s linear infinite;
+  display: inline-flex;
+}
+
+.moving-border-btn-inner {
+  background: var(--bg);
+  border: 0;
+  min-height: 48px;
+  padding: 0 26px;
+  border-radius: 10px;
+  color: var(--fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.15s ease;
+}
+
+.moving-border-btn-inner:hover {
+  transform: translateY(-1px);
+}
+
+/* Waveform Bars */
+.waveform-bar {
+  width: 4px;
+  border-radius: 2px;
+  background: var(--acc);
+  animation: bar 1.1s ease-in-out infinite;
+}
+
+.mini-bar {
+  width: 4px;
+  border-radius: 2px;
+  background: var(--acc);
+  animation: bar 1.3s ease-in-out infinite;
+}
+
+/* Final CTA Glow */
+.final-cta-glow {
+  position: absolute;
+  width: 140%;
+  height: 140%;
+  left: -20%;
+  top: -60%;
+  background: conic-gradient(from 0deg, transparent, var(--glow), transparent 30%, var(--glow), transparent 60%);
+  animation: spin2 18s linear infinite;
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

@@ -1,6 +1,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Hero } from "@/components/marketing/hero";
+import { StackMarquee } from "@/components/marketing/marquee";
 import { BentoGrid, BentoGridItem } from "@/components/ui/bento-grid";
 import { CardSpotlight } from "@/components/ui/card-spotlight";
 import { Badge } from "@/components/ui/badge";
@@ -17,16 +18,11 @@ import {
   Radio,
 } from "lucide-react";
 
-const providers = [
-  "LiveKit",
-  "Twilio",
-  "Telnyx",
-  "Deepgram",
-  "Cartesia",
-  "ElevenLabs",
-  "OpenAI",
-  "Stripe",
-];
+// 48 mini bars for Card 1 matching reference demo
+const MINI_BARS = Array.from({ length: 48 }, (_, i) => ({
+  height: 10 + Math.round(Math.abs(Math.sin(i * 1.7)) * 30),
+  delay: (i * 0.07).toFixed(2),
+}));
 
 export default function MarketingPage() {
   return (
@@ -34,24 +30,8 @@ export default function MarketingPage() {
       {/* Hero Section */}
       <Hero />
 
-      {/* Provider Stack Marquee Strip */}
-      <section className="border-y border-[var(--line)] py-10 overflow-hidden bg-[var(--card)]/40">
-        <div className="max-w-6xl mx-auto px-6 text-center space-y-4">
-          <p className="text-xs uppercase tracking-wider text-[var(--muted)] font-medium">
-            Designed to work with the voice stack you choose
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-8 md:gap-14 text-sm md:text-base font-heading font-semibold text-[var(--muted)]">
-            {providers.map((provider) => (
-              <span
-                key={provider}
-                className="hover:text-[var(--fg)] transition-colors select-none"
-              >
-                {provider}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Provider Stack Continuous Marquee Strip */}
+      <StackMarquee />
 
       {/* Features: Aceternity Bento Grid */}
       <section id="features" className="max-w-6xl mx-auto px-6">
@@ -80,8 +60,23 @@ export default function MarketingPage() {
                 Callers talk over agents all the time. Cadence cancels the speech reply
                 mid-sentence and answers what was just said without perceived lag.
               </p>
+              {/* Mini waveform bars matching reference */}
+              <div className="flex items-center gap-[3px] h-10 pt-2" aria-hidden="true">
+                {MINI_BARS.map((bar, i) => (
+                  <span
+                    key={i}
+                    className="mini-bar"
+                    style={
+                      {
+                        "--h": `${bar.height}px`,
+                        animationDelay: `${bar.delay}s`,
+                      } as React.CSSProperties
+                    }
+                  />
+                ))}
+              </div>
             </div>
-            <div className="pt-4 flex items-center gap-2 text-xs text-[var(--accent)] font-medium font-mono">
+            <div className="pt-2 flex items-center gap-2 text-xs text-[var(--accent)] font-medium font-mono">
               <span className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
               <span>Instant speech cancellation & barge-in detection (&lt; 200ms)</span>
             </div>
@@ -251,25 +246,28 @@ export default function MarketingPage() {
 
       {/* Final Call to Action */}
       <section id="start" className="max-w-6xl mx-auto px-6">
-        <CardSpotlight className="rounded-3xl border border-[var(--line)] bg-[var(--card)] py-16 px-8 md:py-24 md:px-16 text-center shadow-lg relative overflow-hidden">
+        <div className="final rounded-3xl border border-[var(--line)] bg-[var(--card)] py-20 px-8 md:py-32 md:px-16 text-center shadow-lg relative overflow-hidden">
+          {/* Animated Conic Glow Backdrop */}
+          <div className="final-cta-glow" aria-hidden="true" />
+
           <div className="max-w-xl mx-auto space-y-6 relative z-10">
             <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-[var(--fg)] font-heading leading-tight">
               Hear your agent before you commit.
             </h2>
             <p className="text-base md:text-lg text-[var(--muted)] leading-relaxed">
-              Create an agent in minutes and talk to it from your browser. No phone
-              number or credit card needed to test.
+              Create one in minutes and talk to it from your browser. No phone
+              number needed to start.
             </p>
             <div className="pt-2">
-              <Link href="/register">
-                <Button size="lg" className="rounded-xl px-8 h-12 text-base gap-2">
-                  <span>Start free</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
+              <span className="moving-border-btn">
+                <Link href="/register" className="moving-border-btn-inner">
+                  <span>Create your first agent</span>
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Link>
+              </span>
             </div>
           </div>
-        </CardSpotlight>
+        </div>
       </section>
     </div>
   );
