@@ -108,11 +108,24 @@ export function Hero() {
           </p>
           <div className="cta">
             <span className="mb">
-              <Link className="btn" href="#start">
+              <Link className="btn" href="/register">
                 Start free
               </Link>
             </span>
-            <a className="btn" href="#how">
+            <a
+              className="btn"
+              href="#how"
+              onClick={(e) => {
+                const el = document.getElementById("how");
+                if (el) {
+                  e.preventDefault();
+                  el.scrollIntoView({ behavior: "smooth" });
+                  if (typeof window !== "undefined") {
+                    window.history.pushState(null, "", "#how");
+                  }
+                }
+              }}
+            >
               See how it works
             </a>
           </div>

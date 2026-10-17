@@ -209,7 +209,7 @@ export default function MarketingPage() {
               number needed to start.
             </p>
             <span className="mb">
-              <Link className="btn" href="#top">
+              <Link className="btn" href="/register">
                 Create your first agent
               </Link>
             </span>

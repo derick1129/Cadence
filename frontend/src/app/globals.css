@@ -242,6 +242,7 @@ header.nav {
   background-size: 44px 44px;
   mask-image: radial-gradient(ellipse 70% 70% at 50% 30%, #000 30%, transparent 80%);
   -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 30%, #000 30%, transparent 80%);
+  pointer-events: none;
 }
 
 .hero::after {
@@ -604,6 +605,7 @@ h2 {
   background: conic-gradient(from 0deg, transparent, var(--glow), transparent 30%, var(--glow), transparent 60%);
   animation: spin2 18s linear infinite;
   filter: blur(40px);
+  pointer-events: none;
 }
 
 .final > * {
