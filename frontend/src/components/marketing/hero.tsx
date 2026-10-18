@@ -2,162 +2,179 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, Play, Wrench, CheckCircle2 } from "lucide-react";
-import { BackgroundBeams } from "@/components/ui/background-beams";
-import { TextGenerateEffect } from "@/components/ui/text-generate-effect";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+
+const HEADLINE_TEXT = "Answer every call, and sound like your best person.";
+const HEADLINE_WORDS = HEADLINE_TEXT.split(" ");
+
+const WAVEFORM_BARS = Array.from({ length: 26 }, (_, i) => ({
+  height: 10 + Math.round(Math.abs(Math.sin(i * 1.7)) * 56),
+  delay: (i * 0.07).toFixed(2),
+}));
+
+interface MessageItem {
+  kind: "c" | "a" | "t";
+  text: string;
+}
+
+const CONVERSATION_SCRIPT: MessageItem[] = [
+  { kind: "c", text: "Hi, I need to move my cleaning from Tuesday to Thursday." },
+  { kind: "a", text: "Of course. Let me check Thursday for you." },
+  { kind: "t", text: "Tool: Check calendar" },
+  { kind: "a", text: "Thursday at 10:30 is open. Want me to move it there?" },
+  { kind: "c", text: "Yes, please." },
+  { kind: "t", text: "Tool: Reschedule appointment" },
+  { kind: "a", text: "Done. You’re booked for Thursday at 10:30." },
+];
 
 export function Hero() {
+  const heroRef = React.useRef<HTMLDivElement>(null);
+  // Start with initial 4 messages for SSR snapshot
+  const [messages, setMessages] = React.useState<MessageItem[]>(() =>
+    CONVERSATION_SCRIPT.slice(0, 4)
+  );
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!heroRef.current) return;
+    const r = heroRef.current.getBoundingClientRect();
+    heroRef.current.style.setProperty("--mx", `${e.clientX - r.left}px`);
+    heroRef.current.style.setProperty("--my", `${e.clientY - r.top}px`);
+  };
+
+  React.useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setMessages(CONVERSATION_SCRIPT);
+      return;
+    }
+
+    let currentIndex = 4;
+    let timer: NodeJS.Timeout;
+
+    const step = () => {
+      if (currentIndex >= CONVERSATION_SCRIPT.length) {
+        timer = setTimeout(() => {
+          setMessages([]);
+          currentIndex = 0;
+          step();
+        }, 3200);
+        return;
+      }
+
+      const nextMessage = CONVERSATION_SCRIPT[currentIndex];
+      currentIndex++;
+
+      setMessages((prev) => {
+        const updated = [...prev, nextMessage];
+        return updated.length > 5 ? updated.slice(updated.length - 5) : updated;
+      });
+
+      const delay = nextMessage.kind === "t" ? 900 : 1700;
+      timer = setTimeout(step, delay);
+    };
+
+    timer = setTimeout(step, 1800);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <section className="relative overflow-hidden pt-20 pb-24 md:pt-28 md:pb-36 border-b border-[var(--line)]">
-      {/* Aceternity Background Beams */}
-      <BackgroundBeams />
-
-      <div className="max-w-6xl mx-auto px-6 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
-          {/* Left Column: Headline and Call-to-actions */}
-          <div className="lg:col-span-7 space-y-6">
-            <Badge variant="outline" className="gap-2 py-1.5 px-3 bg-[var(--card)]/80 backdrop-blur-xs">
-              <span
-                className="w-2 h-2 rounded-full bg-[var(--accent)] motion-safe:animate-pulse"
-                aria-hidden="true"
-              />
-              <span className="text-[var(--muted)] font-medium">Phone and browser voice agents</span>
-            </Badge>
-
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-[var(--fg)] font-heading leading-[1.08]">
-              <TextGenerateEffect words="Voice agents that answer your calls" />
-            </h1>
-
-            <p className="text-base sm:text-lg text-[var(--muted)] max-w-xl leading-relaxed">
-              Cadence builds voice agents that listen, reply in real time and take
-              action during the call. Afterward you get the recording,
-              transcript and timing for every conversation.
-            </p>
-
-            <div className="flex flex-wrap items-center gap-4 pt-2">
-              <Link href="/register">
-                <Button size="lg" className="rounded-xl px-6 gap-2">
-                  <span>Start free</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
+    <div
+      ref={heroRef}
+      onPointerMove={handlePointerMove}
+      className="hero"
+      id="hero"
+    >
+      <div className="wrap">
+        <div>
+          <span className="pill">
+            <b />
+            Phone and browser voice agents
+          </span>
+          <h1 id="h1" aria-label={HEADLINE_TEXT}>
+            {HEADLINE_WORDS.map((w, i) => (
+              <React.Fragment key={i}>
+                <span
+                  className="w"
+                  aria-hidden="true"
+                  style={{ animationDelay: `${(i * 0.07).toFixed(2)}s` }}
+                >
+                  {w}
+                </span>{" "}
+              </React.Fragment>
+            ))}
+          </h1>
+          <p className="lead">
+            Cadence builds voice agents that listen, reply in real time and take
+            action during the call. Afterward you get the recording, transcript
+            and timing for every conversation.
+          </p>
+          <div className="cta">
+            <span className="mb">
+              <Link className="btn" href="/register">
+                Start free
               </Link>
-
-              <Link href="#how">
-                <Button variant="secondary" size="lg" className="rounded-xl px-5 gap-2">
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>See how it works</span>
-                </Button>
-              </Link>
-            </div>
-
-            <div className="pt-4 flex flex-wrap items-center gap-6 text-xs text-[var(--muted)]">
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-[var(--accent)]" />
-                <span>&lt; 500ms voice response</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-[var(--accent)]" />
-                <span>Browser & SIP phone</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-[var(--accent)]" />
-                <span>Zero vendor lock-in</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column: Live Call Preview Card Illustration */}
-          <div className="lg:col-span-5">
-            <div
-              className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-6 shadow-2xl space-y-4 relative backdrop-blur-xs"
-              aria-label="Example live call illustration"
+            </span>
+            <a
+              className="btn"
+              href="#how"
+              onClick={(e) => {
+                const el = document.getElementById("how");
+                if (el) {
+                  e.preventDefault();
+                  el.scrollIntoView({ behavior: "smooth" });
+                  if (typeof window !== "undefined") {
+                    window.history.pushState(null, "", "#how");
+                  }
+                }
+              }}
             >
-              {/* Card Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-[var(--line)] text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-[var(--fg)]">
-                    Front desk assistant
-                  </span>
-                  <span className="text-[var(--muted)]">· Inbound</span>
+              See how it works
+            </a>
+          </div>
+        </div>
+
+        <div className="call" aria-label="Example call">
+          <div className="top">
+            <span>Front desk assistant</span>
+            <span className="live">
+              <b />
+              Live call
+            </span>
+          </div>
+          <div className="bars" id="bars" aria-hidden="true">
+            {WAVEFORM_BARS.map((bar, i) => (
+              <i
+                key={i}
+                style={
+                  {
+                    "--h": `${bar.height}px`,
+                    animationDelay: `${bar.delay}s`,
+                  } as React.CSSProperties
+                }
+              />
+            ))}
+          </div>
+          <div className="msgs" id="msgs" aria-live="polite">
+            {messages.map((m, i) => {
+              if (m.kind === "t") {
+                return (
+                  <div key={`${i}-${m.text}`} className="tool">
+                    {m.text}
+                  </div>
+                );
+              }
+              const isAgent = m.kind === "a";
+              return (
+                <div
+                  key={`${i}-${m.text}`}
+                  className={`m ${isAgent ? "a" : ""}`}
+                >
+                  <small>{isAgent ? "Agent" : "Caller"}</small>
+                  <span>{m.text}</span>
                 </div>
-                <Badge variant="accent" className="gap-1.5 font-semibold">
-                  <span
-                    className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] motion-safe:animate-pulse"
-                    aria-hidden="true"
-                  />
-                  <span>Live call</span>
-                </Badge>
-              </div>
-
-              {/* Live Waveform Indicator */}
-              <div
-                className="h-12 flex items-center justify-center gap-1 px-4 bg-[var(--bg)] rounded-lg border border-[var(--line)] overflow-hidden"
-                aria-hidden="true"
-              >
-                {[
-                  8, 14, 22, 12, 28, 36, 18, 30, 42, 24, 16, 34, 40, 22, 14,
-                  30, 38, 20, 16, 26, 32, 18, 10, 6,
-                ].map((height, i) => (
-                  <span
-                    key={i}
-                    className="w-1 rounded-full bg-[var(--fg)] opacity-80 motion-safe:animate-pulse"
-                    style={{
-                      height: `${height}px`,
-                      animationDelay: `${(i % 5) * 0.15}s`,
-                      animationDuration: "1.2s",
-                    }}
-                  />
-                ))}
-              </div>
-
-              {/* Message Transcript Exchange */}
-              <div
-                className="space-y-2.5 text-xs font-sans min-h-[220px] flex flex-col justify-end"
-                aria-live="polite"
-              >
-                {/* Caller Message */}
-                <div className="max-w-[85%] self-start rounded-xl px-3.5 py-2.5 bg-[var(--line)]/50 border border-[var(--line)] text-[var(--fg)]">
-                  <span className="block text-[10px] text-[var(--muted)] mb-0.5 font-medium">
-                    Caller (Phone)
-                  </span>
-                  <span>Hi, I need to move my cleaning from Tuesday to Thursday.</span>
-                </div>
-
-                {/* Agent Message */}
-                <div className="max-w-[85%] self-end rounded-xl px-3.5 py-2.5 bg-[#0A0A0A] text-white dark:bg-[#EDEDED] dark:text-[#0A0A0A]">
-                  <span className="block text-[10px] opacity-75 mb-0.5 font-medium">
-                    Cadence Agent
-                  </span>
-                  <span>Of course. Let me check Thursday for you.</span>
-                </div>
-
-                {/* Tool Call Badge */}
-                <div className="self-center flex items-center gap-1.5 px-3 py-1 rounded-md border border-dashed border-[var(--accent)]/60 bg-[var(--accent)]/5 text-[var(--accent)] text-[11px] font-mono">
-                  <Wrench className="w-3 h-3 shrink-0" />
-                  <span>Tool: Check calendar</span>
-                </div>
-
-                {/* Agent Response */}
-                <div className="max-w-[85%] self-end rounded-xl px-3.5 py-2.5 bg-[#0A0A0A] text-white dark:bg-[#EDEDED] dark:text-[#0A0A0A]">
-                  <span className="block text-[10px] opacity-75 mb-0.5 font-medium">
-                    Cadence Agent
-                  </span>
-                  <span>Thursday at 10:30 is open. Want me to move it there?</span>
-                </div>
-              </div>
-
-              {/* Card Footer Stat Tile */}
-              <div className="pt-2 border-t border-[var(--line)] flex items-center justify-between text-[11px] text-[var(--muted)]">
-                <span>Latency: 280ms</span>
-                <span>Isolated tenant</span>
-                <span className="text-[var(--accent)] font-medium">Audio recorded</span>
-              </div>
-            </div>
+              );
+            })}
           </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }

@@ -33,19 +33,22 @@ describe("MarketingLayout component", () => {
 });
 
 describe("Hero component", () => {
-  it("renders the headline 'Voice agents that answer your calls', subtext, CTAs, and preview card", () => {
+  it("renders headline, background grid, cursor spotlight, waveform, and live call card", () => {
     const html = renderToString(<Hero />);
 
-    // Headline
-    expect(html).toContain("Voice agents that answer your calls");
+    // Headline from reference demo
+    expect(html).toContain("Answer every call, and sound like your best person.");
     // Subtext
     expect(html).toContain("Cadence builds voice agents that listen");
+    // Background grid & cursor spotlight elements
+    expect(html).toContain('id="hero"');
     // Call-to-action buttons
     expect(html).toContain("Start free");
     expect(html).toContain("See how it works");
     // Preview card illustration
     expect(html).toContain("Live call");
     expect(html).toContain("Front desk assistant");
+    expect(html).toContain('id="bars"');
     expect(html).toContain("Tool: Check calendar");
   });
 });
@@ -55,22 +58,35 @@ describe("MarketingPage component", () => {
     const html = renderToString(<MarketingPage />);
 
     // Hero headline
-    expect(html).toContain("Voice agents that answer your calls");
+    expect(html).toContain("Answer every call, and sound like your best person.");
+    // Stack marquee strip with continuous loop
+    expect(html).toContain(
+      "Designed to work with the voice stack you choose (example names)"
+    );
+    expect(html).toContain('id="track"');
+    // Marquee should duplicate providers for infinite slide
+    const livekitMatches = html.match(/LiveKit/g);
+    expect(livekitMatches && livekitMatches.length).toBeGreaterThanOrEqual(2);
+
     // Value proposition bento section
-    expect(html).toContain("Built for real conversations, not phone menus");
+    expect(html).toContain("Built for real conversations, not phone menus.");
     expect(html).toContain("Interrupt it. It stops and listens.");
     expect(html).toContain("One agent, two doors");
     expect(html).toContain("Does things mid-call");
     expect(html).toContain("Every call on record");
     expect(html).toContain("Safe edits");
+    expect(html).toContain("Your company’s knowledge");
+    expect(html).toContain("Outbound campaigns");
+    expect(html).toContain("Separate by organization");
     // Coming soon items
     expect(html).toContain("Coming soon");
     // How it works steps
-    expect(html).toContain("From idea to a ringing phone in an afternoon");
+    expect(html).toContain("From idea to a ringing phone in an afternoon.");
     expect(html).toContain("Describe the job");
     expect(html).toContain("Talk to it in your browser");
     expect(html).toContain("Connect a number");
     // Final CTA
-    expect(html).toContain("Hear your agent before you commit");
+    expect(html).toContain("Hear your agent before you commit.");
+    expect(html).toContain("Create your first agent");
   });
 });

@@ -25,9 +25,14 @@ async_session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Yield an async database session for request lifecycle."""
+    """Yield an async database session with automatic transaction commit on exit."""
     async with async_session_factory() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 async def check_db_ready() -> bool:
