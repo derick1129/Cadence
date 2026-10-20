@@ -42,7 +42,7 @@ def generate_presigned_s3_url(
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
     date_stamp = now.strftime("%Y%m%d")
 
-    clean_key = key.lstrip("/")
+    clean_key = quote(key.lstrip("/"), safe="/")
     canonical_uri = f"/{bucket_name}/{clean_key}"
 
     credential_scope = f"{date_stamp}/{region}/{service}/aws4_request"

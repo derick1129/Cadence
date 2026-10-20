@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.modules.sessions.models import Session
@@ -22,7 +22,7 @@ async def reconcile_orphaned_sessions(
         result = await session.execute(
             select(Session).where(
                 Session.status.in_(["initiated", "active"]),
-                Session.started_at <= cutoff,
+                func.coalesce(Session.started_at, Session.created_at) <= cutoff,
             )
         )
         stale_records = result.scalars().all()
@@ -30,8 +30,9 @@ async def reconcile_orphaned_sessions(
             s.status = "failed"
             s.outcome = "abandoned"
             s.ended_at = now
-            if s.started_at:
-                s.duration_s = int((now - s.started_at).total_seconds())
+            start_ref: datetime | None = s.started_at or s.created_at
+            if start_ref:
+                s.duration_s = int((now - start_ref).total_seconds())
         await session.flush()
         return len(stale_records)
 
@@ -39,11 +40,12 @@ async def reconcile_orphaned_sessions(
     closed = 0
     for sess in repo._mock_sessions.values():
         if sess.get("status") in ("initiated", "active"):
-            started = sess.get("started_at") or now
-            if started <= cutoff:
+            ref_time = sess.get("started_at") or sess.get("created_at") or now
+            if ref_time <= cutoff:
                 sess["status"] = "failed"
                 sess["outcome"] = "abandoned"
                 sess["ended_at"] = now
-                sess["duration_s"] = int((now - started).total_seconds()) if started else 0
+                start_ref = sess.get("started_at") or sess.get("created_at")
+                sess["duration_s"] = int((now - start_ref).total_seconds()) if start_ref else 0
                 closed += 1
     return closed

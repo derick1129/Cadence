@@ -139,12 +139,6 @@ def test_sigv4_presigned_url_empty_or_root_key() -> None:
     assert parsed_slash.path == f"/{settings.S3_RECORDINGS_BUCKET}/"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Vulnerability: SigV4 presigned URL path contains raw spaces instead of percent-encoded %20"
-    ),
-)
 def test_sigv4_presigned_url_spaces_uri_encoding_adversarial() -> None:
     """Vulnerability probe: object keys with spaces must be URI-encoded per RFC 3986 in SigV4.
 
@@ -517,10 +511,6 @@ async def test_challenge_internal_token_fuzzing(challenge_client: AsyncClient) -
             )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Bug: secrets.compare_digest raises TypeError on non-ASCII tokens causing 500 error",
-)
 @pytest.mark.asyncio
 async def test_challenge_verify_internal_token_non_ascii_vulnerability() -> None:
     """Vulnerability probe: verify_internal_token must reject non-ASCII tokens with 401, not 500.
@@ -542,6 +532,11 @@ async def test_challenge_verify_internal_token_non_ascii_vulnerability() -> None
         assert exc_info.value.status_code == 401, (
             f"Expected HTTPException(401) for token '{tok}', got {exc_info.value.status_code}"
         )
+
+
+test_internal_token_non_ascii_rejected = (
+    test_challenge_verify_internal_token_non_ascii_vulnerability
+)
 
 
 def test_challenge_timing_attack_resilience() -> None:
@@ -822,3 +817,249 @@ async def test_reconciliation_db_mode() -> None:
     assert stale_session.status == "failed"
     assert stale_session.outcome == "abandoned"
     assert mock_db.flush.called
+
+
+# ==============================================================================
+# 7. JWT Claims Fuzzing & Tenant Impersonation Penetration Attacks
+# ==============================================================================
+
+
+@pytest.mark.asyncio
+async def test_challenge_jwt_claims_fuzzing(challenge_client: AsyncClient) -> None:
+    """Fuzz JWT claims with missing, empty, forged, or expired tenant identifiers."""
+    # 1. Missing organization_id in token
+    token_no_org = create_access_token(data={"sub": "usr-attacker"})
+    res1 = await challenge_client.get(
+        "/sessions", headers={"Authorization": f"Bearer {token_no_org}"}
+    )
+    assert res1.status_code == 401
+    assert res1.json()["error"]["code"] == "TOKEN_INVALID"
+
+    # 2. Empty string organization_id
+    token_empty_org = create_access_token(data={"sub": "usr-attacker", "organization_id": ""})
+    res2 = await challenge_client.get(
+        "/sessions", headers={"Authorization": f"Bearer {token_empty_org}"}
+    )
+    assert res2.status_code == 401
+    assert res2.json()["error"]["code"] == "TOKEN_INVALID"
+
+    # 3. Forged token signed with untrusted secret key
+    forged_token = create_access_token(
+        data={"sub": "usr-attacker", "organization_id": "org-victim"},
+        secret_key="completely-wrong-untrusted-secret-key",
+    )
+    res3 = await challenge_client.get(
+        "/sessions", headers={"Authorization": f"Bearer {forged_token}"}
+    )
+    assert res3.status_code == 401
+    assert res3.json()["error"]["code"] == "TOKEN_INVALID"
+
+    # 4. Expired token
+    expired_token = create_access_token(
+        data={"sub": "usr-attacker", "organization_id": "org-victim"},
+        expires_delta=timedelta(seconds=-60),
+    )
+    res4 = await challenge_client.get(
+        "/sessions", headers={"Authorization": f"Bearer {expired_token}"}
+    )
+    assert res4.status_code == 401
+    assert res4.json()["error"]["code"] == "TOKEN_EXPIRED"
+
+    # 5. Token tampering: modified payload signature mismatch
+    valid_token = create_access_token(data={"sub": "usr-1", "organization_id": "org-1"})
+    tampered_token = valid_token[:-4] + "ABCD"
+    res5 = await challenge_client.get(
+        "/sessions", headers={"Authorization": f"Bearer {tampered_token}"}
+    )
+    assert res5.status_code == 401
+    assert res5.json()["error"]["code"] == "TOKEN_INVALID"
+
+
+@pytest.mark.asyncio
+async def test_challenge_tenant_mismatch_header_spoofing(challenge_client: AsyncClient) -> None:
+    """Attempt tenant impersonation via conflicting X-Organization-Id header."""
+    token = create_access_token(
+        data={"sub": "usr-legit", "organization_id": "org-legit", "role": "member"}
+    )
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "X-Organization-Id": "org-victim-spoofed",
+    }
+    res = await challenge_client.get("/sessions", headers=headers)
+    assert res.status_code == 403
+    assert res.json()["error"]["code"] == "TENANT_MISMATCH"
+
+
+@pytest.mark.asyncio
+async def test_challenge_finalize_payload_validation(challenge_client: AsyncClient) -> None:
+    """Verify input validation rejection on malformed finalization payloads."""
+    internal_headers = {"X-Internal-Service-Token": settings.INTERNAL_SERVICE_TOKEN}
+
+    # 1. Negative duration on finalize -> 422 Unprocessable Entity
+    res_neg = await challenge_client.post(
+        "/internal/sessions/s1/finalize",
+        headers=internal_headers,
+        json={"duration_s": -5},
+    )
+    assert res_neg.status_code == 422
+
+    # 2. Missing required recording_key on egress/finalize -> 422
+    res_no_key = await challenge_client.post(
+        "/internal/egress/finalize",
+        headers=internal_headers,
+        json={"room_name": "room-xyz"},
+    )
+    assert res_no_key.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_challenge_empty_transcripts_and_metrics(challenge_client: AsyncClient) -> None:
+    """Verify clean response when session exists but has 0 transcripts and no metrics."""
+    org_id = "org-empty-records"
+    token = create_access_token(data={"sub": "usr-1", "organization_id": org_id, "role": "owner"})
+    user_headers = {"Authorization": f"Bearer {token}"}
+
+    agent_res = await challenge_client.post(
+        "/agents", headers=user_headers, json={"name": "A", "system_prompt": "A"}
+    )
+    sess_res = await challenge_client.post(
+        "/sessions/web", headers=user_headers, json={"agent_id": agent_res.json()["id"]}
+    )
+    session_id = sess_res.json()["session_id"]
+
+    # Retrieve transcripts for fresh session: returns [] with 200 OK
+    trans_res = await challenge_client.get(
+        f"/sessions/{session_id}/transcript", headers=user_headers
+    )
+    assert trans_res.status_code == 200
+    assert trans_res.json() == []
+
+    # Retrieve metrics for fresh session: returns null with 200 OK
+    metrics_res = await challenge_client.get(
+        f"/sessions/{session_id}/metrics", headers=user_headers
+    )
+    assert metrics_res.status_code == 200
+    assert metrics_res.json() is None
+
+
+@pytest.mark.asyncio
+async def test_challenge_reconciliation_exact_boundary_delta() -> None:
+    """Stress-test session reconciliation exactly on and around the threshold boundary."""
+    repo = SessionRepository()
+    now = datetime.now(UTC)
+    threshold = 600
+
+    # Session 1: exactly on cutoff boundary -> STALE
+    s_boundary = await repo.create_session(
+        str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), "web", "room-bnd"
+    )
+    repo._mock_sessions[s_boundary["id"]]["started_at"] = now - timedelta(seconds=threshold)
+
+    # Session 2: 1 second fresher than cutoff -> NOT STALE
+    s_fresh = await repo.create_session(
+        str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), "web", "room-frs"
+    )
+    repo._mock_sessions[s_fresh["id"]]["started_at"] = now - timedelta(seconds=threshold - 1)
+
+    # Session 3: 1 second past cutoff -> STALE
+    s_past = await repo.create_session(
+        str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), "web", "room-pst"
+    )
+    repo._mock_sessions[s_past["id"]]["started_at"] = now - timedelta(seconds=threshold + 1)
+
+    closed = await reconcile_orphaned_sessions(repository=repo, stale_threshold_seconds=threshold)
+    assert closed >= 2
+
+    res_boundary = await repo.get_by_id_internal(s_boundary["id"])
+    assert res_boundary is not None
+    assert res_boundary["status"] == "failed"
+
+    res_past = await repo.get_by_id_internal(s_past["id"])
+    assert res_past is not None
+    assert res_past["status"] == "failed"
+
+    res_fresh = await repo.get_by_id_internal(s_fresh["id"])
+    assert res_fresh is not None
+    assert res_fresh["status"] == "initiated"
+
+
+@pytest.mark.asyncio
+async def test_challenge_reconciliation_future_timestamps_clock_skew() -> None:
+    """Stress-test reconciliation against future timestamps due to clock skew."""
+    repo = SessionRepository()
+    now = datetime.now(UTC)
+
+    s_future = await repo.create_session(
+        str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), "web", "room-fut"
+    )
+    repo._mock_sessions[s_future["id"]]["started_at"] = now + timedelta(hours=1)
+
+    closed = await reconcile_orphaned_sessions(repository=repo, stale_threshold_seconds=600)
+    assert closed == 0
+
+    res_future = await repo.get_by_id_internal(s_future["id"])
+    assert res_future is not None
+    assert res_future["status"] == "initiated"
+
+
+@pytest.mark.asyncio
+async def test_challenge_reconciliation_null_started_at_behavior() -> None:
+    """Empirically prove that sessions with started_at=None are never cleaned up when threshold > 0.
+
+    This documents Finding 3: In both AsyncSession and mock repository modes,
+    reconciliation filters by `started_at <= cutoff`. If started_at is NULL,
+    the session remains orphaned forever unless threshold=0.
+    """
+    repo = SessionRepository()
+    sess = await repo.create_session(
+        str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), "web", "room-null-st"
+    )
+    repo._mock_sessions[sess["id"]]["started_at"] = None
+
+    closed_normal = await reconcile_orphaned_sessions(repository=repo, stale_threshold_seconds=600)
+    assert closed_normal == 0
+
+    sess_check = await repo.get_by_id_internal(sess["id"])
+    assert sess_check is not None
+    assert sess_check["status"] == "initiated"
+
+
+@pytest.mark.asyncio
+async def test_challenge_pagination_and_query_isolation(challenge_client: AsyncClient) -> None:
+    """Stress-test pagination limits, offsets, and multi-tenant isolation under query filters."""
+    org_a = "org-pagination-a"
+    org_b = "org-pagination-b"
+    token_a = create_access_token(data={"sub": "usr-a", "organization_id": org_a, "role": "owner"})
+    token_b = create_access_token(data={"sub": "usr-b", "organization_id": org_b, "role": "owner"})
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+
+    agent_a = await challenge_client.post(
+        "/agents", headers=headers_a, json={"name": "A", "system_prompt": "A"}
+    )
+    agent_a_id = agent_a.json()["id"]
+
+    for _ in range(5):
+        await challenge_client.post(
+            "/sessions/web", headers=headers_a, json={"agent_id": agent_a_id}
+        )
+
+    res_page1 = await challenge_client.get("/sessions?limit=2&offset=0", headers=headers_a)
+    assert res_page1.status_code == 200
+    data_page1 = res_page1.json()
+    assert len(data_page1["items"]) == 2
+    assert data_page1["total"] == 5
+
+    res_page2 = await challenge_client.get("/sessions?limit=2&offset=2", headers=headers_a)
+    assert res_page2.status_code == 200
+    data_page2 = res_page2.json()
+    assert len(data_page2["items"]) == 2
+
+    page1_ids = {item["id"] for item in data_page1["items"]}
+    page2_ids = {item["id"] for item in data_page2["items"]}
+    assert page1_ids.isdisjoint(page2_ids)
+
+    res_b = await challenge_client.get("/sessions?limit=10&offset=0", headers=headers_b)
+    assert res_b.status_code == 200
+    assert res_b.json()["total"] == 0
+    assert len(res_b.json()["items"]) == 0

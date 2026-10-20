@@ -465,21 +465,21 @@ class SessionRepository:
             res = await self.session.execute(
                 select(SessionMetric).where(SessionMetric.session_id == sess_uuid)
             )
-            existing = res.scalar_one_or_none()
-            if existing:
+            existing_metric = res.scalar_one_or_none()
+            if existing_metric:
                 if "avg_latency_ms" in metrics:
-                    existing.avg_latency_ms = metrics.get("avg_latency_ms")
+                    existing_metric.avg_latency_ms = metrics.get("avg_latency_ms")
                 if "p95_latency_ms" in metrics:
-                    existing.p95_latency_ms = metrics.get("p95_latency_ms")
+                    existing_metric.p95_latency_ms = metrics.get("p95_latency_ms")
                 if "interruption_count" in metrics:
-                    existing.interruption_count = int(metrics["interruption_count"])
+                    existing_metric.interruption_count = int(metrics["interruption_count"])
                 if "llm_tokens_used" in metrics:
-                    existing.llm_tokens_used = int(metrics["llm_tokens_used"])
+                    existing_metric.llm_tokens_used = int(metrics["llm_tokens_used"])
                 if "stt_seconds_billed" in metrics:
-                    existing.stt_seconds_billed = float(metrics["stt_seconds_billed"])
+                    existing_metric.stt_seconds_billed = float(metrics["stt_seconds_billed"])
                 if "tts_characters_billed" in metrics:
-                    existing.tts_characters_billed = int(metrics["tts_characters_billed"])
-                metric_item = existing
+                    existing_metric.tts_characters_billed = int(metrics["tts_characters_billed"])
+                metric_item = existing_metric
             else:
                 metric_item = SessionMetric(
                     session_id=sess_uuid,
@@ -503,6 +503,29 @@ class SessionRepository:
                 "tts_characters_billed": metric_item.tts_characters_billed,
                 "created_at": metric_item.created_at,
             }
+
+        existing = self._mock_metrics.get(session_id)
+        if not existing:
+            canon = _canonical_uuid(session_id)
+            for k, v in self._mock_metrics.items():
+                if _canonical_uuid(k) == canon:
+                    existing = v
+                    break
+
+        if existing:
+            if "avg_latency_ms" in metrics:
+                existing["avg_latency_ms"] = metrics.get("avg_latency_ms")
+            if "p95_latency_ms" in metrics:
+                existing["p95_latency_ms"] = metrics.get("p95_latency_ms")
+            if "interruption_count" in metrics:
+                existing["interruption_count"] = int(metrics["interruption_count"])
+            if "llm_tokens_used" in metrics:
+                existing["llm_tokens_used"] = int(metrics["llm_tokens_used"])
+            if "stt_seconds_billed" in metrics:
+                existing["stt_seconds_billed"] = float(metrics["stt_seconds_billed"])
+            if "tts_characters_billed" in metrics:
+                existing["tts_characters_billed"] = int(metrics["tts_characters_billed"])
+            return existing
 
         rec = {
             "id": str(uuid.uuid4()),

@@ -2,6 +2,7 @@
 
 import uuid
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -87,6 +88,31 @@ async def test_reconcile_orphaned_sessions_db_mode() -> None:
     assert fake_sess.status == "failed"
     assert fake_sess.outcome == "abandoned"
     assert mock_session.flush.called
+
+
+@pytest.mark.asyncio
+async def test_reconcile_orphaned_sessions_null_started_at() -> None:
+    """Verify reconciliation closes stale initiated sessions when started_at is NULL."""
+    repo = SessionRepository()
+    sess = await repo.create_session(
+        organization_id=str(uuid.uuid4()),
+        agent_id=str(uuid.uuid4()),
+        agent_version_id=str(uuid.uuid4()),
+        channel="web",
+        room_name=f"null-started-{uuid.uuid4().hex[:6]}",
+    )
+    repo._mock_sessions[sess["id"]]["started_at"] = None
+    repo._mock_sessions[sess["id"]]["created_at"] = datetime.now(UTC) - timedelta(seconds=700)
+    repo._mock_sessions[sess["id"]]["status"] = "initiated"
+
+    closed = await reconcile_orphaned_sessions(repository=repo, stale_threshold_seconds=600)
+    assert closed == 1
+
+    updated = await repo.get_by_id_internal(sess["id"])
+    assert updated is not None
+    assert updated["status"] == "failed"
+    assert updated["outcome"] == "abandoned"
+    assert updated["duration_s"] >= 690
 
 
 @pytest.mark.asyncio

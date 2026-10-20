@@ -118,3 +118,37 @@ async def test_session_repository_db_session_mode() -> None:
     metrics_res = await repo.create_or_update_metrics(session_id, {"avg_latency_ms": 300})
     assert metrics_res["avg_latency_ms"] == 300
     assert mock_session.add.called
+
+
+@pytest.mark.asyncio
+async def test_mock_repository_metrics_partial_update_preservation() -> None:
+    """Verify mock repository does not clobber unspecified fields on subsequent metric updates."""
+    repo = SessionRepository()
+    session_id = f"sess-{uuid.uuid4().hex[:12]}"
+
+    initial = await repo.create_or_update_metrics(
+        session_id,
+        {
+            "avg_latency_ms": 200,
+            "llm_tokens_used": 150,
+            "interruption_count": 3,
+        },
+    )
+    assert initial["llm_tokens_used"] == 150
+    record_id = initial["id"]
+    created_at = initial["created_at"]
+
+    updated = await repo.create_or_update_metrics(
+        session_id,
+        {
+            "avg_latency_ms": 320,
+        },
+    )
+    assert updated["id"] == record_id
+    assert updated["created_at"] == created_at
+    assert updated["avg_latency_ms"] == 320
+    assert updated["llm_tokens_used"] == 150
+    assert updated["interruption_count"] == 3
+
+    fetched = await repo.get_metrics(session_id)
+    assert fetched == updated

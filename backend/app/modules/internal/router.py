@@ -1,9 +1,8 @@
 """Internal worker and webhook router."""
 
-import secrets
-
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 
+from backend.app.core.security import compare_digest
 from backend.app.core.settings import settings
 from backend.app.modules.internal.schemas import (
     EgressFinalizeRequest,
@@ -29,7 +28,7 @@ async def verify_internal_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing internal service token",
         )
-    if not secrets.compare_digest(x_internal_service_token, settings.INTERNAL_SERVICE_TOKEN):
+    if not compare_digest(x_internal_service_token, settings.INTERNAL_SERVICE_TOKEN):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid internal service token",
