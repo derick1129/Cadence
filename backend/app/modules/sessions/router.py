@@ -1,7 +1,13 @@
-"""Sessions router."""
+"""Sessions HTTP router."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.core.db import get_db
+from backend.app.core.deps import get_current_tenant_id
+from backend.app.core.errors import AppError
+from backend.app.modules.agents import AgentRepository, AgentService
+from backend.app.modules.sessions.repository import SessionRepository
 from backend.app.modules.sessions.schemas import (
     SessionListResponse,
     SessionResponse,
@@ -13,47 +19,41 @@ from backend.app.modules.sessions.service import SessionService
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
-def get_session_service() -> SessionService:
-    """Dependency provider for SessionService."""
-    return SessionService()
+def get_session_service(db: AsyncSession = Depends(get_db)) -> SessionService:
+    """Dependency provider returning SessionService wired with current DB session."""
+    agent_service = AgentService(repository=AgentRepository(session=db))
+    return SessionService(repository=SessionRepository(session=db), agent_service=agent_service)
 
 
-@router.post(
-    "/web",
-    response_model=WebSessionStartResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/web", response_model=WebSessionStartResponse, status_code=status.HTTP_201_CREATED)
 async def start_web_session(
     request: WebSessionStartRequest,
-    organization_id: str = "org-mock-1",
+    org_id: str = Depends(get_current_tenant_id),
     service: SessionService = Depends(get_session_service),
 ) -> WebSessionStartResponse:
-    """Start a new web browser test voice call session."""
-    return await service.start_web_session(organization_id, request)
+    """Initialize a browser WebRTC voice session and return LiveKit credentials."""
+    return await service.start_web_session(organization_id=org_id, request=request)
 
 
 @router.get("", response_model=SessionListResponse)
 async def list_sessions(
-    organization_id: str = "org-mock-1",
     limit: int = 50,
     offset: int = 0,
+    org_id: str = Depends(get_current_tenant_id),
     service: SessionService = Depends(get_session_service),
 ) -> SessionListResponse:
-    """List sessions with call duration and recording references."""
-    return await service.list_sessions(organization_id=organization_id, limit=limit, offset=offset)
+    """List session call history scoped to the authenticated organization."""
+    return await service.list_sessions(organization_id=org_id, limit=limit, offset=offset)
 
 
 @router.get("/{session_id}", response_model=SessionResponse)
 async def get_session(
     session_id: str,
-    organization_id: str = "org-mock-1",
+    org_id: str = Depends(get_current_tenant_id),
     service: SessionService = Depends(get_session_service),
 ) -> SessionResponse:
-    """Retrieve details for a specific session."""
-    session = await service.get_session(organization_id, session_id)
+    """Fetch session details ensuring tenant isolation."""
+    session = await service.get_session(organization_id=org_id, session_id=session_id)
     if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found",
-        )
+        raise AppError(code="SESSION_NOT_FOUND", message="Session not found", status_code=404)
     return session
