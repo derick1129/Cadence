@@ -42,6 +42,10 @@ class ToolService:
         )
         return ToolResponse(**tool)
 
+    async def delete_tool(self, organization_id: str, tool_id: str) -> bool:
+        """Delete a tool by ID scoped to the organization."""
+        return await self.repository.delete_tool(organization_id=organization_id, tool_id=tool_id)
+
     async def invoke_tool(
         self,
         organization_id: str,

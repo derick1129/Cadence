@@ -36,6 +36,11 @@ api_v1_router.include_router(sessions_router)
 
 app.include_router(api_v1_router)
 
+v1_router = APIRouter(prefix="/v1")
+v1_router.include_router(tools_router)
+v1_router.include_router(sessions_router)
+app.include_router(v1_router)
+
 # Mount root routers for backwards compatibility with test harnesses and frontend rewrites
 app.include_router(auth_router)
 app.include_router(organizations_router)

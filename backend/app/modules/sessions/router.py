@@ -1,4 +1,4 @@
-"""Sessions HTTP router."""
+from typing import Any
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,7 @@ from backend.app.modules.sessions.schemas import (
     WebSessionStartResponse,
 )
 from backend.app.modules.sessions.service import SessionService
+from backend.app.modules.tools import ToolRepository
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -90,3 +91,17 @@ async def get_recording_url(
 ) -> RecordingUrlResponse:
     """Get a short-lived presigned URL to stream or download call audio recording."""
     return await service.get_recording_url(organization_id=org_id, session_id=session_id)
+
+
+@router.get("/{session_id}/tool-calls")
+async def get_session_tool_calls(
+    session_id: str,
+    org_id: str = Depends(get_current_tenant_id),
+    service: SessionService = Depends(get_session_service),
+) -> list[dict[str, Any]]:
+    """Retrieve audit log of tools executed during a session for the tenant."""
+    session = await service.get_session(organization_id=org_id, session_id=session_id)
+    if not session:
+        raise AppError(code="SESSION_NOT_FOUND", message="Session not found", status_code=404)
+    tool_repo = ToolRepository(session=service.repository.session)
+    return await tool_repo.list_tool_calls_for_session(session_id)
