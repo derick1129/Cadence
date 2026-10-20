@@ -4,8 +4,11 @@ from backend.app.modules.sessions.models import Session, SessionMetric, Transcri
 from backend.app.modules.sessions.repository import SessionRepository
 from backend.app.modules.sessions.router import router
 from backend.app.modules.sessions.schemas import (
+    RecordingUrlResponse,
     SessionListResponse,
+    SessionMetricResponse,
     SessionResponse,
+    TranscriptSegmentResponse,
     WebSessionStartRequest,
     WebSessionStartResponse,
 )
@@ -21,5 +24,8 @@ __all__ = [
     "WebSessionStartResponse",
     "SessionListResponse",
     "SessionResponse",
+    "TranscriptSegmentResponse",
+    "SessionMetricResponse",
+    "RecordingUrlResponse",
     "router",
 ]

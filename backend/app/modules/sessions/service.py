@@ -6,11 +6,15 @@ from typing import Any
 from backend.app.core.errors import AppError
 from backend.app.core.livekit import generate_livekit_token
 from backend.app.core.settings import settings
+from backend.app.core.storage import generate_presigned_s3_url
 from backend.app.modules.agents import AgentService
 from backend.app.modules.sessions.repository import SessionRepository
 from backend.app.modules.sessions.schemas import (
+    RecordingUrlResponse,
     SessionListResponse,
+    SessionMetricResponse,
     SessionResponse,
+    TranscriptSegmentResponse,
     WebSessionStartRequest,
     WebSessionStartResponse,
 )
@@ -126,3 +130,42 @@ class SessionService:
     async def get_by_room_name_internal(self, room_name: str) -> dict[str, Any] | None:
         """Resolve session by room name for internal egress webhook."""
         return await self.repository.get_by_room_name(room_name)
+
+    async def get_transcript(
+        self, organization_id: str, session_id: str
+    ) -> list[TranscriptSegmentResponse]:
+        """Fetch transcript segments ensuring tenant isolation."""
+        session = await self.get_session(organization_id, session_id)
+        if not session:
+            raise AppError(code="SESSION_NOT_FOUND", message="Session not found", status_code=404)
+        items = await self.repository.get_transcript(session_id)
+        return [TranscriptSegmentResponse.model_validate(i) for i in items]
+
+    async def get_metrics(
+        self, organization_id: str, session_id: str
+    ) -> SessionMetricResponse | None:
+        """Fetch session metrics ensuring tenant isolation."""
+        session = await self.get_session(organization_id, session_id)
+        if not session:
+            raise AppError(code="SESSION_NOT_FOUND", message="Session not found", status_code=404)
+        data = await self.repository.get_metrics(session_id)
+        if not data:
+            return None
+        return SessionMetricResponse.model_validate(data)
+
+    async def get_recording_url(
+        self, organization_id: str, session_id: str
+    ) -> RecordingUrlResponse:
+        """Generate presigned S3/MinIO playback URL after validating tenant ownership."""
+        session = await self.get_session(organization_id, session_id)
+        if not session:
+            raise AppError(code="SESSION_NOT_FOUND", message="Session not found", status_code=404)
+        if not session.recording_key:
+            raise AppError(
+                code="RECORDING_NOT_FOUND",
+                message="No recording exists for this session",
+                status_code=404,
+            )
+
+        url = generate_presigned_s3_url(key=session.recording_key, expires_in_seconds=900)
+        return RecordingUrlResponse(recording_url=url, expires_in_seconds=900)
