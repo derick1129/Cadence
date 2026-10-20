@@ -8,9 +8,11 @@ from worker.agent.entrypoint import (
     fetch_runtime_config,
     run_worker,
 )
+from worker.agent.pipeline import VoicePipeline
 
 __all__ = [
     "RuntimeConfig",
+    "VoicePipeline",
     "WorkerConfig",
     "create_worker_options",
     "entrypoint",

@@ -96,6 +96,14 @@ async def entrypoint(ctx: JobContext) -> None:
             runtime_cfg.session_id,
             runtime_cfg.agent_version_id,
         )
+        from worker.agent.pipeline import VoicePipeline
+        from worker.providers.factory import ProviderFactory
+
+        stt, llm, tts = ProviderFactory.create_providers(runtime_cfg)
+        pipeline = VoicePipeline(config=runtime_cfg, stt=stt, llm=llm, tts=tts)
+        greeting = await pipeline.get_greeting_audio()
+        if greeting:
+            logger.info("Spoke greeting: %s", runtime_cfg.greeting)
     except Exception as exc:
         logger.error("Failed to load runtime config for session %s: %s", session_id, exc)
         return
