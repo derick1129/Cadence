@@ -18,7 +18,7 @@ from backend.app.modules.sessions.schemas import (
     WebSessionStartResponse,
 )
 from backend.app.modules.sessions.service import SessionService
-from backend.app.modules.tools import ToolRepository
+from backend.app.modules.tools import ToolService
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -26,7 +26,12 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 def get_session_service(db: AsyncSession = Depends(get_db)) -> SessionService:
     """Dependency provider returning SessionService wired with current DB session."""
     agent_service = AgentService(repository=AgentRepository(session=db))
-    return SessionService(repository=SessionRepository(session=db), agent_service=agent_service)
+    tool_service = ToolService(session=db)
+    return SessionService(
+        repository=SessionRepository(session=db),
+        agent_service=agent_service,
+        tool_service=tool_service,
+    )
 
 
 @router.post("/web", response_model=WebSessionStartResponse, status_code=status.HTTP_201_CREATED)
@@ -100,8 +105,4 @@ async def get_session_tool_calls(
     service: SessionService = Depends(get_session_service),
 ) -> list[dict[str, Any]]:
     """Retrieve audit log of tools executed during a session for the tenant."""
-    session = await service.get_session(organization_id=org_id, session_id=session_id)
-    if not session:
-        raise AppError(code="SESSION_NOT_FOUND", message="Session not found", status_code=404)
-    tool_repo = ToolRepository(session=service.repository.session)
-    return await tool_repo.list_tool_calls_for_session(session_id)
+    return await service.get_tool_calls(organization_id=org_id, session_id=session_id)

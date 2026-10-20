@@ -18,6 +18,7 @@ from backend.app.modules.sessions.schemas import (
     WebSessionStartRequest,
     WebSessionStartResponse,
 )
+from backend.app.modules.tools import ToolService
 
 
 class SessionService:
@@ -27,9 +28,11 @@ class SessionService:
         self,
         repository: SessionRepository | None = None,
         agent_service: AgentService | None = None,
+        tool_service: ToolService | None = None,
     ) -> None:
         self.repository = repository or SessionRepository()
         self.agent_service = agent_service or AgentService()
+        self.tool_service = tool_service or ToolService(session=self.repository.session)
 
     async def start_web_session(
         self, organization_id: str, request: WebSessionStartRequest
@@ -169,3 +172,10 @@ class SessionService:
 
         url = generate_presigned_s3_url(key=session.recording_key, expires_in_seconds=900)
         return RecordingUrlResponse(recording_url=url, expires_in_seconds=900)
+
+    async def get_tool_calls(self, organization_id: str, session_id: str) -> list[dict[str, Any]]:
+        """Retrieve audit log of tools executed during a session for the tenant."""
+        session = await self.get_session(organization_id, session_id)
+        if not session:
+            raise AppError(code="SESSION_NOT_FOUND", message="Session not found", status_code=404)
+        return await self.tool_service.list_tool_calls_for_session(session_id)

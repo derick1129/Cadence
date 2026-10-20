@@ -18,8 +18,11 @@ from backend.app.modules.internal.schemas import (
 )
 from backend.app.modules.sessions import SessionService
 from backend.app.modules.telephony import TelephonyService
-from backend.app.modules.tools import ToolRepository
-from backend.app.modules.tools.executor import execute_http_tool
+from backend.app.modules.tools import (
+    ToolRepository,
+    execute_http_tool,
+    validate_json_schema,
+)
 
 
 class InternalGatewayService:
@@ -47,24 +50,6 @@ class InternalGatewayService:
         """Fetch pinned agent version configuration and tool schemas for an active session."""
         session = await self.session_service.get_session_internal(session_id)
         if not session:
-            if session_id == "sess-mock-1":
-                return RuntimeConfigResponse(
-                    session_id=session_id,
-                    agent_id="agent-mock-1",
-                    agent_version_id="ver-mock-1",
-                    system_prompt="You are a helpful customer support agent for Cadence.",
-                    greeting="Hello! Thanks for calling. How can I help you today?",
-                    stt_config={"provider": "deepgram", "model": "nova-2"},
-                    llm_config={
-                        "provider": "openai",
-                        "model": "gpt-4o-mini",
-                        "temperature": 0.7,
-                    },
-                    tts_config={"provider": "cartesia", "voice_id": "sonic-english"},
-                    silence_timeout_s=15,
-                    max_duration_s=600,
-                    tools=[],
-                )
             raise AppError(
                 code="SESSION_NOT_FOUND",
                 message=f"Session '{session_id}' not found",
@@ -124,18 +109,6 @@ class InternalGatewayService:
         start_time = time.perf_counter()
         session = await self.session_service.get_session_internal(session_id)
         if not session:
-            if session_id == "sess-mock-1":
-                elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-                return ToolInvokeResponse(
-                    tool_name=request.tool_name,
-                    result={
-                        "status": "completed",
-                        "message": f"Tool {request.tool_name} executed successfully",
-                    },
-                    status="success",
-                    latency_ms=elapsed_ms,
-                    error=None,
-                )
             return ToolInvokeResponse(
                 tool_name=request.tool_name,
                 result=None,
@@ -156,6 +129,28 @@ class InternalGatewayService:
                 latency_ms=elapsed_ms,
                 error=f"Tool '{request.tool_name}' is not attached to session pinned version",
             )
+
+        schema = matching_tool.get("json_schema")
+        if schema:
+            is_valid, validation_error = validate_json_schema(schema, request.arguments)
+            if not is_valid:
+                elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+                await self.tool_repository.record_tool_call(
+                    session_id=session_id,
+                    tool_id=matching_tool.get("id"),
+                    tool_name=request.tool_name,
+                    arguments=request.arguments,
+                    result=None,
+                    status="failed",
+                    latency_ms=elapsed_ms,
+                )
+                return ToolInvokeResponse(
+                    tool_name=request.tool_name,
+                    result=None,
+                    status="failed",
+                    latency_ms=elapsed_ms,
+                    error=f"Invalid arguments for tool '{request.tool_name}': {validation_error}",
+                )
 
         tool_type = matching_tool.get("type", "http")
         config = matching_tool.get("config", {})

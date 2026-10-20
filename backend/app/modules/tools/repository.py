@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import delete, desc, select
+from sqlalchemy import delete, desc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.modules.tools.models import AgentTool, Tool, ToolCall
@@ -40,30 +40,44 @@ class ToolRepository:
         self._agent_tools = self._mock_agent_tools
         self._tool_calls = self._mock_tool_calls
 
+    async def _safe_rollback(self) -> None:
+        """Roll back active transaction and disengage session on connection failure."""
+        if self.session is not None:
+            try:
+                await self.session.rollback()
+            except Exception:
+                pass
+            self.session = None
+
     async def list_tools(self, organization_id: str) -> list[dict[str, Any]]:
         """List all tools belonging to an organization."""
         if self.session is not None:
-            org_uuid = _parse_uuid(organization_id)
-            if org_uuid is None:
-                return []
-            result = await self.session.execute(
-                select(Tool).where(Tool.organization_id == org_uuid).order_by(desc(Tool.created_at))
-            )
-            records = result.scalars().all()
-            return [
-                {
-                    "id": str(r.id),
-                    "organization_id": str(r.organization_id),
-                    "name": r.name,
-                    "type": r.type,
-                    "config": r.config,
-                    "json_schema": r.json_schema,
-                    "outcome_label": r.outcome_label,
-                    "created_at": r.created_at,
-                    "updated_at": r.updated_at,
-                }
-                for r in records
-            ]
+            try:
+                org_uuid = _parse_uuid(organization_id)
+                if org_uuid is None:
+                    return []
+                result = await self.session.execute(
+                    select(Tool)
+                    .where(Tool.organization_id == org_uuid)
+                    .order_by(desc(Tool.created_at))
+                )
+                records = result.scalars().all()
+                return [
+                    {
+                        "id": str(r.id),
+                        "organization_id": str(r.organization_id),
+                        "name": r.name,
+                        "type": r.type,
+                        "config": r.config,
+                        "json_schema": r.json_schema,
+                        "outcome_label": r.outcome_label,
+                        "created_at": r.created_at,
+                        "updated_at": r.updated_at,
+                    }
+                    for r in records
+                ]
+            except (OSError, Exception):
+                await self._safe_rollback()
 
         clean_org = organization_id.removeprefix("org-")
         return [
@@ -76,27 +90,30 @@ class ToolRepository:
     async def get_tool_by_id(self, organization_id: str, tool_id: str) -> dict[str, Any] | None:
         """Retrieve a tool by ID strictly scoped to an organization."""
         if self.session is not None:
-            org_uuid = _parse_uuid(organization_id)
-            tool_uuid = _parse_uuid(tool_id)
-            if org_uuid is None or tool_uuid is None:
-                return None
-            result = await self.session.execute(
-                select(Tool).where(Tool.id == tool_uuid, Tool.organization_id == org_uuid)
-            )
-            r = result.scalar_one_or_none()
-            if not r:
-                return None
-            return {
-                "id": str(r.id),
-                "organization_id": str(r.organization_id),
-                "name": r.name,
-                "type": r.type,
-                "config": r.config,
-                "json_schema": r.json_schema,
-                "outcome_label": r.outcome_label,
-                "created_at": r.created_at,
-                "updated_at": r.updated_at,
-            }
+            try:
+                org_uuid = _parse_uuid(organization_id)
+                tool_uuid = _parse_uuid(tool_id)
+                if org_uuid is None or tool_uuid is None:
+                    return None
+                result = await self.session.execute(
+                    select(Tool).where(Tool.id == tool_uuid, Tool.organization_id == org_uuid)
+                )
+                r = result.scalar_one_or_none()
+                if not r:
+                    return None
+                return {
+                    "id": str(r.id),
+                    "organization_id": str(r.organization_id),
+                    "name": r.name,
+                    "type": r.type,
+                    "config": r.config,
+                    "json_schema": r.json_schema,
+                    "outcome_label": r.outcome_label,
+                    "created_at": r.created_at,
+                    "updated_at": r.updated_at,
+                }
+            except (OSError, Exception):
+                await self._safe_rollback()
 
         tool = self._tools.get(tool_id)
         if not tool:
@@ -117,26 +134,29 @@ class ToolRepository:
     async def get_tool_by_name(self, organization_id: str, name: str) -> dict[str, Any] | None:
         """Find a tool by name within an organization."""
         if self.session is not None:
-            org_uuid = _parse_uuid(organization_id)
-            if org_uuid is None:
-                return None
-            result = await self.session.execute(
-                select(Tool).where(Tool.name == name, Tool.organization_id == org_uuid)
-            )
-            r = result.scalar_one_or_none()
-            if not r:
-                return None
-            return {
-                "id": str(r.id),
-                "organization_id": str(r.organization_id),
-                "name": r.name,
-                "type": r.type,
-                "config": r.config,
-                "json_schema": r.json_schema,
-                "outcome_label": r.outcome_label,
-                "created_at": r.created_at,
-                "updated_at": r.updated_at,
-            }
+            try:
+                org_uuid = _parse_uuid(organization_id)
+                if org_uuid is None:
+                    return None
+                result = await self.session.execute(
+                    select(Tool).where(Tool.name == name, Tool.organization_id == org_uuid)
+                )
+                r = result.scalar_one_or_none()
+                if not r:
+                    return None
+                return {
+                    "id": str(r.id),
+                    "organization_id": str(r.organization_id),
+                    "name": r.name,
+                    "type": r.type,
+                    "config": r.config,
+                    "json_schema": r.json_schema,
+                    "outcome_label": r.outcome_label,
+                    "created_at": r.created_at,
+                    "updated_at": r.updated_at,
+                }
+            except (OSError, Exception):
+                await self._safe_rollback()
 
         clean_org = organization_id.removeprefix("org-")
         for tool in self._tools.values():
@@ -159,30 +179,33 @@ class ToolRepository:
         """Create a new tool record for the tenant."""
         now = datetime.now(UTC)
         if self.session is not None:
-            org_uuid = _parse_uuid(organization_id)
-            if org_uuid is None:
-                org_uuid = uuid.uuid4()
-            tool = Tool(
-                organization_id=org_uuid,
-                name=name,
-                type=tool_type,
-                config=config,
-                json_schema=json_schema,
-                outcome_label=outcome_label,
-            )
-            self.session.add(tool)
-            await self.session.flush()
-            return {
-                "id": str(tool.id),
-                "organization_id": str(tool.organization_id),
-                "name": tool.name,
-                "type": tool.type,
-                "config": tool.config,
-                "json_schema": tool.json_schema,
-                "outcome_label": tool.outcome_label,
-                "created_at": tool.created_at,
-                "updated_at": tool.updated_at,
-            }
+            try:
+                org_uuid = _parse_uuid(organization_id)
+                if org_uuid is None:
+                    org_uuid = uuid.uuid4()
+                tool = Tool(
+                    organization_id=org_uuid,
+                    name=name,
+                    type=tool_type,
+                    config=config,
+                    json_schema=json_schema,
+                    outcome_label=outcome_label,
+                )
+                self.session.add(tool)
+                await self.session.flush()
+                return {
+                    "id": str(tool.id),
+                    "organization_id": str(tool.organization_id),
+                    "name": tool.name,
+                    "type": tool.type,
+                    "config": tool.config,
+                    "json_schema": tool.json_schema,
+                    "outcome_label": tool.outcome_label,
+                    "created_at": tool.created_at,
+                    "updated_at": tool.updated_at,
+                }
+            except (OSError, Exception):
+                await self._safe_rollback()
 
         tool_id = str(uuid.uuid4())
         tool_dict = {
@@ -202,16 +225,19 @@ class ToolRepository:
     async def delete_tool(self, organization_id: str, tool_id: str) -> bool:
         """Delete a tool by ID strictly scoped to organization."""
         if self.session is not None:
-            org_uuid = _parse_uuid(organization_id)
-            tool_uuid = _parse_uuid(tool_id)
-            if org_uuid is None or tool_uuid is None:
-                return False
-            result = await self.session.execute(
-                delete(Tool).where(Tool.id == tool_uuid, Tool.organization_id == org_uuid)
-            )
-            await self.session.flush()
-            rowcount = getattr(result, "rowcount", 0)
-            return bool(rowcount and rowcount > 0)
+            try:
+                org_uuid = _parse_uuid(organization_id)
+                tool_uuid = _parse_uuid(tool_id)
+                if org_uuid is None or tool_uuid is None:
+                    return False
+                result = await self.session.execute(
+                    delete(Tool).where(Tool.id == tool_uuid, Tool.organization_id == org_uuid)
+                )
+                await self.session.flush()
+                rowcount = getattr(result, "rowcount", 0)
+                return bool(rowcount and rowcount > 0)
+            except (OSError, Exception):
+                await self._safe_rollback()
 
         target_key = None
         clean_org = organization_id.removeprefix("org-")
@@ -227,19 +253,67 @@ class ToolRepository:
             return True
         return False
 
+    async def update_tool(
+        self,
+        organization_id: str,
+        tool_id: str,
+        updates: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Update fields of an existing tool strictly scoped to an organization."""
+        now = datetime.now(UTC)
+        if self.session is not None:
+            try:
+                org_uuid = _parse_uuid(organization_id)
+                tool_uuid = _parse_uuid(tool_id)
+                if org_uuid is None or tool_uuid is None:
+                    return None
+
+                allowed_fields = {"name", "type", "config", "json_schema", "outcome_label"}
+                values = {k: v for k, v in updates.items() if k in allowed_fields}
+                if not values:
+                    return await self.get_tool_by_id(organization_id, tool_id)
+
+                values["updated_at"] = now
+                result = await self.session.execute(
+                    update(Tool)
+                    .where(Tool.id == tool_uuid, Tool.organization_id == org_uuid)
+                    .values(**values)
+                )
+                await self.session.flush()
+                rowcount = getattr(result, "rowcount", 0)
+                if rowcount == 0:
+                    return None
+                return await self.get_tool_by_id(organization_id, tool_id)
+            except (OSError, Exception):
+                await self._safe_rollback()
+
+        target_tool = await self.get_tool_by_id(organization_id, tool_id)
+        if not target_tool:
+            return None
+
+        allowed_fields = {"name", "type", "config", "json_schema", "outcome_label"}
+        for k, v in updates.items():
+            if k in allowed_fields:
+                target_tool[k] = v
+        target_tool["updated_at"] = now
+        return target_tool
+
     async def attach_tools_to_version(self, version_id: str, tool_ids: list[str]) -> None:
         """Bind tools to an immutable agent version."""
         if self.session is not None:
-            ver_uuid = _parse_uuid(version_id)
-            if ver_uuid is None:
-                ver_uuid = uuid.uuid4()
-            for tid in tool_ids:
-                t_uuid = _parse_uuid(tid)
-                if t_uuid is not None:
-                    assoc = AgentTool(agent_version_id=ver_uuid, tool_id=t_uuid)
-                    self.session.add(assoc)
-            await self.session.flush()
-            return
+            try:
+                ver_uuid = _parse_uuid(version_id)
+                if ver_uuid is None:
+                    ver_uuid = uuid.uuid4()
+                for tid in tool_ids:
+                    t_uuid = _parse_uuid(tid)
+                    if t_uuid is not None:
+                        assoc = AgentTool(agent_version_id=ver_uuid, tool_id=t_uuid)
+                        self.session.add(assoc)
+                await self.session.flush()
+                return
+            except (OSError, Exception):
+                await self._safe_rollback()
 
         for tid in tool_ids:
             record = {"agent_version_id": version_id, "tool_id": tid}
@@ -249,29 +323,32 @@ class ToolRepository:
     async def get_tools_for_version(self, version_id: str) -> list[dict[str, Any]]:
         """Retrieve all tools bound to an agent version."""
         if self.session is not None:
-            ver_uuid = _parse_uuid(version_id)
-            if ver_uuid is None:
-                return []
-            result = await self.session.execute(
-                select(Tool)
-                .join(AgentTool, AgentTool.tool_id == Tool.id)
-                .where(AgentTool.agent_version_id == ver_uuid)
-            )
-            records = result.scalars().all()
-            return [
-                {
-                    "id": str(r.id),
-                    "organization_id": str(r.organization_id),
-                    "name": r.name,
-                    "type": r.type,
-                    "config": r.config,
-                    "json_schema": r.json_schema,
-                    "outcome_label": r.outcome_label,
-                    "created_at": r.created_at,
-                    "updated_at": r.updated_at,
-                }
-                for r in records
-            ]
+            try:
+                ver_uuid = _parse_uuid(version_id)
+                if ver_uuid is None:
+                    return []
+                result = await self.session.execute(
+                    select(Tool)
+                    .join(AgentTool, AgentTool.tool_id == Tool.id)
+                    .where(AgentTool.agent_version_id == ver_uuid)
+                )
+                records = result.scalars().all()
+                return [
+                    {
+                        "id": str(r.id),
+                        "organization_id": str(r.organization_id),
+                        "name": r.name,
+                        "type": r.type,
+                        "config": r.config,
+                        "json_schema": r.json_schema,
+                        "outcome_label": r.outcome_label,
+                        "created_at": r.created_at,
+                        "updated_at": r.updated_at,
+                    }
+                    for r in records
+                ]
+            except (OSError, Exception):
+                await self._safe_rollback()
 
         clean_ver = version_id.removeprefix("ver-")
         matching_ids = {
@@ -300,34 +377,37 @@ class ToolRepository:
         """Record an executed tool invocation in audit log."""
         now = datetime.now(UTC)
         if self.session is not None:
-            sess_uuid = _parse_uuid(session_id)
-            if sess_uuid is None:
-                sess_uuid = uuid.uuid4()
-            tool_uuid = _parse_uuid(tool_id) if tool_id else None
+            try:
+                sess_uuid = _parse_uuid(session_id)
+                if sess_uuid is None:
+                    sess_uuid = uuid.uuid4()
+                tool_uuid = _parse_uuid(tool_id) if tool_id else None
 
-            call_record = ToolCall(
-                session_id=sess_uuid,
-                tool_id=tool_uuid,
-                tool_name=tool_name,
-                arguments=arguments,
-                result=result if isinstance(result, dict) else {"output": result},
-                status=status,
-                latency_ms=latency_ms,
-            )
-            self.session.add(call_record)
-            await self.session.flush()
-            return {
-                "id": str(call_record.id),
-                "session_id": str(call_record.session_id),
-                "tool_id": str(call_record.tool_id) if call_record.tool_id else None,
-                "tool_name": call_record.tool_name,
-                "arguments": call_record.arguments,
-                "result": call_record.result,
-                "status": call_record.status,
-                "latency_ms": call_record.latency_ms,
-                "created_at": call_record.created_at,
-                "updated_at": call_record.updated_at,
-            }
+                call_record = ToolCall(
+                    session_id=sess_uuid,
+                    tool_id=tool_uuid,
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    result=result if isinstance(result, dict) else {"output": result},
+                    status=status,
+                    latency_ms=latency_ms,
+                )
+                self.session.add(call_record)
+                await self.session.flush()
+                return {
+                    "id": str(call_record.id),
+                    "session_id": str(call_record.session_id),
+                    "tool_id": str(call_record.tool_id) if call_record.tool_id else None,
+                    "tool_name": call_record.tool_name,
+                    "arguments": call_record.arguments,
+                    "result": call_record.result,
+                    "status": call_record.status,
+                    "latency_ms": call_record.latency_ms,
+                    "created_at": call_record.created_at,
+                    "updated_at": call_record.updated_at,
+                }
+            except (OSError, Exception):
+                await self._safe_rollback()
 
         call_id = str(uuid.uuid4())
         record = {
@@ -348,30 +428,33 @@ class ToolRepository:
     async def list_tool_calls_for_session(self, session_id: str) -> list[dict[str, Any]]:
         """Retrieve audit log of tools executed during a session."""
         if self.session is not None:
-            sess_uuid = _parse_uuid(session_id)
-            if sess_uuid is None:
-                return []
-            result = await self.session.execute(
-                select(ToolCall)
-                .where(ToolCall.session_id == sess_uuid)
-                .order_by(ToolCall.created_at.asc())
-            )
-            records = result.scalars().all()
-            return [
-                {
-                    "id": str(r.id),
-                    "session_id": str(r.session_id),
-                    "tool_id": str(r.tool_id) if r.tool_id else None,
-                    "tool_name": r.tool_name,
-                    "arguments": r.arguments,
-                    "result": r.result,
-                    "status": r.status,
-                    "latency_ms": r.latency_ms,
-                    "created_at": r.created_at,
-                    "updated_at": r.updated_at,
-                }
-                for r in records
-            ]
+            try:
+                sess_uuid = _parse_uuid(session_id)
+                if sess_uuid is None:
+                    return []
+                result = await self.session.execute(
+                    select(ToolCall)
+                    .where(ToolCall.session_id == sess_uuid)
+                    .order_by(ToolCall.created_at.asc())
+                )
+                records = result.scalars().all()
+                return [
+                    {
+                        "id": str(r.id),
+                        "session_id": str(r.session_id),
+                        "tool_id": str(r.tool_id) if r.tool_id else None,
+                        "tool_name": r.tool_name,
+                        "arguments": r.arguments,
+                        "result": r.result,
+                        "status": r.status,
+                        "latency_ms": r.latency_ms,
+                        "created_at": r.created_at,
+                        "updated_at": r.updated_at,
+                    }
+                    for r in records
+                ]
+            except (OSError, Exception):
+                await self._safe_rollback()
 
         clean_sess = session_id.removeprefix("sess-")
         return [

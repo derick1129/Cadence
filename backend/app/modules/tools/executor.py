@@ -69,6 +69,51 @@ def _is_ip_blocked(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> tuple[b
     return False, None
 
 
+def _parse_custom_ipv4(hostname: str) -> ipaddress.IPv4Address | None:
+    """Parse custom IPv4 notations (hex octets, octal integers, decimal integers)."""
+    if ":" in hostname:
+        return None
+    parts = hostname.split(".")
+    if not (1 <= len(parts) <= 4):
+        return None
+    values: list[int] = []
+    for p in parts:
+        if not p:
+            return None
+        try:
+            if p.lower().startswith("0x"):
+                values.append(int(p, 16))
+            elif p.startswith("0") and len(p) > 1 and p.isdigit():
+                values.append(int(p, 8))
+            elif p.isdigit():
+                values.append(int(p, 10))
+            else:
+                return None
+        except ValueError:
+            return None
+
+    if len(values) == 4:
+        if any(v > 255 for v in values):
+            return None
+        int_val = (values[0] << 24) | (values[1] << 16) | (values[2] << 8) | values[3]
+    elif len(values) == 3:
+        if values[0] > 255 or values[1] > 255 or values[2] > 65535:
+            return None
+        int_val = (values[0] << 24) | (values[1] << 16) | values[2]
+    elif len(values) == 2:
+        if values[0] > 255 or values[1] > 16777215:
+            return None
+        int_val = (values[0] << 24) | values[1]
+    elif len(values) == 1:
+        if values[0] > 4294967295:
+            return None
+        int_val = values[0]
+    else:
+        return None
+
+    return ipaddress.IPv4Address(int_val)
+
+
 def is_safe_url(url: str) -> tuple[bool, str | None]:
     """Inspect URL hostname and verify resolved IP addresses are public."""
     parsed = urlparse(url.strip())
@@ -78,6 +123,30 @@ def is_safe_url(url: str) -> tuple[bool, str | None]:
     hostname = parsed.hostname
     if not hostname:
         return False, "Missing hostname in tool URL"
+
+    # Reject IPv4 address literals with leading zeros (ambiguous octal notation)
+    if ":" not in hostname:
+        parts = hostname.split(".")
+        if 1 <= len(parts) <= 4:
+            is_numeric_ip = all(
+                p.isdigit() or (p.lower().startswith("0x") and len(p) > 2) for p in parts if p
+            )
+            if is_numeric_ip and any(
+                p.isdigit() and len(p) > 1 and p.startswith("0") for p in parts
+            ):
+                return (
+                    False,
+                    f"SSRF blocked: Hostname '{hostname}' contains ambiguous "
+                    "octal IP octets with leading zeros",
+                )
+
+    # Evaluate custom IPv4 representations (hex, octal, integer notation)
+    custom_ip = _parse_custom_ipv4(hostname)
+    if custom_ip is not None:
+        blocked, reason = _is_ip_blocked(custom_ip)
+        if blocked:
+            return False, f"SSRF blocked: {reason}"
+        return True, None
 
     try:
         # Check direct IP literal (IPv4 or IPv6)
@@ -192,3 +261,97 @@ async def execute_http_tool(
             "result": None,
             "error": f"Tool execution network error: {exc}",
         }
+
+
+def validate_json_schema(
+    schema: dict[str, Any] | None,
+    data: Any,
+    path: str = "root",
+) -> tuple[bool, str | None]:
+    """Validate data against a JSON schema using standard Python.
+
+    Validates type, required fields, properties, array items, enums,
+    and additionalProperties.
+    """
+    if not schema or not isinstance(schema, dict):
+        return True, None
+
+    expected_type = schema.get("type")
+    if expected_type:
+        type_valid = False
+        allowed_types: list[str] = (
+            expected_type if isinstance(expected_type, list) else [expected_type]
+        )
+        for t in allowed_types:
+            if t == "string" and isinstance(data, str):
+                type_valid = True
+                break
+            elif t == "integer" and isinstance(data, int) and not isinstance(data, bool):
+                type_valid = True
+                break
+            elif t == "number" and isinstance(data, (int, float)) and not isinstance(data, bool):
+                type_valid = True
+                break
+            elif t == "boolean" and isinstance(data, bool):
+                type_valid = True
+                break
+            elif t == "array" and isinstance(data, list):
+                type_valid = True
+                break
+            elif t == "object" and isinstance(data, dict):
+                type_valid = True
+                break
+            elif t == "null" and data is None:
+                type_valid = True
+                break
+
+        if not type_valid:
+            actual_type = "null" if data is None else type(data).__name__
+            return False, f"Expected type '{expected_type}' at '{path}', got '{actual_type}'"
+
+    if isinstance(data, dict):
+        required = schema.get("required")
+        if isinstance(required, list):
+            for field in required:
+                if field not in data:
+                    prop_path = f"{path}.{field}" if path != "root" else field
+                    return False, f"Missing required property: '{prop_path}'"
+
+        additional_props = schema.get("additionalProperties")
+        properties = schema.get("properties", {})
+        if additional_props is False:
+            for key in data:
+                if key not in properties:
+                    prop_path = f"{path}.{key}" if path != "root" else key
+                    return False, f"Unexpected additional property '{prop_path}'"
+
+        if isinstance(properties, dict):
+            for key, val in data.items():
+                if key in properties:
+                    prop_path = f"{path}.{key}" if path != "root" else key
+                    valid, err = validate_json_schema(properties[key], val, path=prop_path)
+                    if not valid:
+                        return False, err
+                elif isinstance(additional_props, dict):
+                    prop_path = f"{path}.{key}" if path != "root" else key
+                    valid, err = validate_json_schema(additional_props, val, path=prop_path)
+                    if not valid:
+                        return False, err
+
+    elif ("properties" in schema or "required" in schema) and not isinstance(data, dict):
+        return False, f"Expected object at '{path}', got '{type(data).__name__}'"
+
+    if isinstance(data, list):
+        items_schema = schema.get("items")
+        if isinstance(items_schema, dict):
+            for idx, item in enumerate(data):
+                item_path = f"{path}[{idx}]"
+                valid, err = validate_json_schema(items_schema, item, path=item_path)
+                if not valid:
+                    return False, err
+
+    enum_vals = schema.get("enum")
+    if isinstance(enum_vals, list) and data not in enum_vals:
+        return False, f"Value at '{path}' is not in allowed enum {enum_vals}"
+
+    return True, None
