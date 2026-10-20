@@ -91,12 +91,38 @@ class SessionService:
         session_id: str,
         status: str,
         outcome: str | None = None,
+        outcome_label: str | None = None,
         duration_s: int | None = None,
+        recording_key: str | None = None,
     ) -> dict[str, Any] | None:
         """Update session status and duration for internal worker finalization."""
         return await self.repository.update_status(
             session_id=session_id,
             status=status,
             outcome=outcome,
+            outcome_label=outcome_label,
             duration_s=duration_s,
+            recording_key=recording_key,
         )
+
+    async def create_transcript_segments_internal(
+        self, session_id: str, segments: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Persist transcript segments for internal worker finalization."""
+        return await self.repository.create_transcript_segments(session_id, segments)
+
+    async def create_or_update_metrics_internal(
+        self, session_id: str, metrics: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Persist session metrics for internal worker finalization."""
+        return await self.repository.create_or_update_metrics(session_id, metrics)
+
+    async def update_recording_key_internal(
+        self, session_id: str, recording_key: str
+    ) -> dict[str, Any] | None:
+        """Update session recording key for internal egress finalization."""
+        return await self.repository.update_recording_key(session_id, recording_key)
+
+    async def get_by_room_name_internal(self, room_name: str) -> dict[str, Any] | None:
+        """Resolve session by room name for internal egress webhook."""
+        return await self.repository.get_by_room_name(room_name)

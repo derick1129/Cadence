@@ -113,11 +113,36 @@ class InternalGatewayService:
         """Finalize session transcripts, metrics, and duration on call disconnect."""
         await self.session_service.update_status_internal(
             session_id=session_id,
-            status="completed",
+            status=request.status,
+            outcome=request.outcome,
+            outcome_label=request.outcome_label,
             duration_s=request.duration_s,
         )
+
+        if request.transcript_segments:
+            segments_data = [s.model_dump() for s in request.transcript_segments]
+            await self.session_service.create_transcript_segments_internal(
+                session_id, segments_data
+            )
+
+        if request.metrics:
+            await self.session_service.create_or_update_metrics_internal(
+                session_id, request.metrics.model_dump()
+            )
+
         return InternalGenericResponse(status="ok")
 
     async def finalize_egress(self, request: EgressFinalizeRequest) -> InternalGenericResponse:
         """Handle signed LiveKit Egress upload completion webhook."""
+        session_id = request.session_id
+        if not session_id and request.room_name:
+            sess = await self.session_service.get_by_room_name_internal(request.room_name)
+            if sess:
+                session_id = sess["id"]
+
+        if session_id:
+            await self.session_service.update_recording_key_internal(
+                session_id, request.recording_key
+            )
+
         return InternalGenericResponse(status="ok")
