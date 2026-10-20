@@ -1,6 +1,7 @@
 """Internal worker gateway service."""
 
 import uuid
+from typing import Any
 
 from backend.app.core.errors import AppError
 from backend.app.modules.agents import AgentService
@@ -16,6 +17,7 @@ from backend.app.modules.internal.schemas import (
 )
 from backend.app.modules.sessions import SessionService
 from backend.app.modules.telephony import TelephonyService
+from backend.app.modules.tools import ToolRepository
 
 
 class InternalGatewayService:
@@ -28,10 +30,16 @@ class InternalGatewayService:
         session_service: SessionService | None = None,
         agent_service: AgentService | None = None,
         telephony_service: TelephonyService | None = None,
+        tool_repository: ToolRepository | None = None,
+        session_repository: Any | None = None,
     ) -> None:
-        self.session_service = session_service or SessionService()
+        if session_service is None and session_repository is not None:
+            self.session_service = SessionService(repository=session_repository)
+        else:
+            self.session_service = session_service or SessionService()
         self.agent_service = agent_service or AgentService()
         self.telephony_service = telephony_service or TelephonyService()
+        self.tool_repository = tool_repository or ToolRepository()
 
     async def get_runtime_config(self, session_id: str) -> RuntimeConfigResponse:
         """Fetch pinned agent version configuration and tool schemas for an active session."""
@@ -70,6 +78,18 @@ class InternalGatewayService:
                 status_code=404,
             )
 
+        tools_list: list[dict[str, Any]] = []
+        raw_tools = await self.tool_repository.get_tools_for_version(agent_version_id)
+        for t in raw_tools:
+            tools_list.append(
+                {
+                    "type": "function",
+                    "name": t["name"],
+                    "description": t.get("description") or f"Tool of type {t['type']}",
+                    "parameters": t.get("json_schema") or {"type": "object", "properties": {}},
+                }
+            )
+
         return RuntimeConfigResponse(
             session_id=session_id,
             agent_id=str(session["agent_id"]),
@@ -81,7 +101,7 @@ class InternalGatewayService:
             tts_config=version.tts_config,
             silence_timeout_s=int(version.silence_timeout_s),
             max_duration_s=version.max_duration_s,
-            tools=[],
+            tools=tools_list,
         )
 
     async def handle_sip_intake(self, request: SipIntakeRequest) -> SipIntakeResponse:

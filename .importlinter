@@ -8,8 +8,8 @@ layers =
     backend.app.modules.internal
     backend.app.modules.sessions
     backend.app.modules.telephony
-    backend.app.modules.tools
     backend.app.modules.agents
+    backend.app.modules.tools
     backend.app.modules.providers
     backend.app.modules.billing
     backend.app.modules.auth
