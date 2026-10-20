@@ -56,3 +56,6 @@ Thumbs.db
 # LiveKit & Local storage
 deploy/data/
 deploy/minio_data/
+
+# Agents
+.agents/
