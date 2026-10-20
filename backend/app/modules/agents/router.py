@@ -1,6 +1,6 @@
 """Agent HTTP router."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.core.db import get_db
@@ -9,6 +9,7 @@ from backend.app.core.deps import (
     get_current_tenant_id,
     require_roles,
 )
+from backend.app.core.errors import AppError
 from backend.app.modules.agents.repository import AgentRepository
 from backend.app.modules.agents.schemas import (
     AgentCreate,
@@ -39,11 +40,12 @@ async def list_agents(
 async def create_agent(
     request: AgentCreate,
     claims: TokenClaims = Depends(require_roles({"owner", "admin"})),
+    org_id: str = Depends(get_current_tenant_id),
     service: AgentService = Depends(get_agent_service),
 ) -> AgentResponse:
     """Create a new voice agent with initial version (owner and admin only)."""
     return await service.create_agent(
-        organization_id=claims.organization_id,
+        organization_id=org_id,
         data=request,
         user_id=claims.user_id,
     )
@@ -58,9 +60,10 @@ async def get_agent(
     """Get an agent by ID scoped to the authenticated organization."""
     agent = await service.get_agent(organization_id=org_id, agent_id=agent_id)
     if not agent:
-        raise HTTPException(
+        raise AppError(
+            code="AGENT_NOT_FOUND",
+            message="Agent not found",
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent not found",
         )
     return agent
 
@@ -70,19 +73,21 @@ async def update_agent(
     agent_id: str,
     request: AgentUpdate,
     claims: TokenClaims = Depends(require_roles({"owner", "admin"})),
+    org_id: str = Depends(get_current_tenant_id),
     service: AgentService = Depends(get_agent_service),
 ) -> AgentResponse:
     """Update agent metadata or bump to a new immutable version (owner and admin only)."""
     agent = await service.update_agent(
-        organization_id=claims.organization_id,
+        organization_id=org_id,
         agent_id=agent_id,
         data=request,
         user_id=claims.user_id,
     )
     if not agent:
-        raise HTTPException(
+        raise AppError(
+            code="AGENT_NOT_FOUND",
+            message="Agent not found",
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent not found",
         )
     return agent
 
@@ -96,9 +101,10 @@ async def list_agent_versions(
     """List all version revisions for an agent."""
     agent = await service.get_agent(organization_id=org_id, agent_id=agent_id)
     if not agent:
-        raise HTTPException(
+        raise AppError(
+            code="AGENT_NOT_FOUND",
+            message="Agent not found",
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent not found",
         )
     return await service.list_versions(organization_id=org_id, agent_id=agent_id)
 
@@ -115,8 +121,9 @@ async def get_agent_version(
         organization_id=org_id, agent_id=agent_id, version_id=version_id
     )
     if not version:
-        raise HTTPException(
+        raise AppError(
+            code="AGENT_VERSION_NOT_FOUND",
+            message="Agent version not found",
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent version not found",
         )
     return version

@@ -1,5 +1,6 @@
 """Agent business logic service."""
 
+import uuid
 from typing import Any
 
 from backend.app.core.errors import AppError
@@ -10,11 +11,21 @@ from backend.app.modules.agents.schemas import (
     AgentUpdate,
     AgentVersionResponse,
 )
-from backend.app.modules.providers import ProviderService
+from backend.app.modules.providers import ProviderOption, ProviderService
 
 DEFAULT_STT_CONFIG = {"provider": "deepgram", "model": "nova-2"}
 DEFAULT_LLM_CONFIG = {"provider": "openai", "model": "gpt-4o-mini"}
 DEFAULT_TTS_CONFIG = {"provider": "cartesia", "model": "sonic-english", "voice": "default-voice"}
+
+
+def _canonical_uuid(val: Any) -> str:
+    """Normalize a UUID string or UUID object to canonical lowercase hex format."""
+    if not val:
+        return ""
+    try:
+        return str(uuid.UUID(str(val)))
+    except (ValueError, TypeError, AttributeError):
+        return str(val).strip().lower()
 
 
 class AgentService:
@@ -28,114 +39,143 @@ class AgentService:
         self.repository = repository or AgentRepository()
         self.provider_service = provider_service or ProviderService()
 
+    def _build_response(
+        self, agent: dict[str, Any], version: dict[str, Any] | None = None
+    ) -> AgentResponse:
+        v_resp = AgentVersionResponse(**version) if version else None
+        return AgentResponse(
+            id=agent["id"],
+            organization_id=agent["organization_id"],
+            name=agent["name"],
+            current_version_id=agent.get("current_version_id"),
+            current_version=v_resp,
+            created_at=agent["created_at"],
+            updated_at=agent["updated_at"],
+        )
+
+    async def _get_agent_record(
+        self, organization_id: str, agent_id: str
+    ) -> tuple[dict[str, Any] | None, str]:
+        canon = _canonical_uuid(agent_id)
+        rec = await self.repository.get_agent_by_id(organization_id, agent_id)
+        if not rec and canon != agent_id:
+            rec = await self.repository.get_agent_by_id(organization_id, canon)
+        return rec, canon
+
+    def _validate_tts_voice(
+        self,
+        cfg: dict[str, Any],
+        opt: ProviderOption,
+        default_config: dict[str, Any],
+    ) -> str | None:
+        voice = cfg.get("voice")
+        if not voice:
+            if opt.provider == default_config.get("provider") and default_config.get("voice"):
+                voice = default_config["voice"]
+            else:
+                voice = opt.default_voice or (opt.voices[0] if opt.voices else None)
+        if opt.voices and (not voice or voice not in opt.voices):
+            raise AppError(
+                code="INVALID_PROVIDER_CONFIG",
+                message=(
+                    f"TTS voice '{voice}' is not supported by provider '{opt.provider}'. "
+                    f"Supported: {sorted(opt.voices)}"
+                ),
+                status_code=400,
+            )
+        return voice
+
+    def _validate_category_config(
+        self,
+        category: str,
+        config: dict[str, Any] | None,
+        default_config: dict[str, Any],
+        catalog_providers: list[ProviderOption],
+    ) -> dict[str, Any]:
+        cfg = dict(config or {})
+        prov = (
+            cfg["provider"]
+            if "provider" in cfg and not cfg["provider"]
+            else (cfg.get("provider") or default_config.get("provider"))
+        )
+        if not prov:
+            raise AppError(
+                code="INVALID_PROVIDER_CONFIG",
+                message=f"{category} provider is required.",
+                status_code=400,
+            )
+        opt = next((p for p in catalog_providers if p.provider == prov or p.id == prov), None)
+        if not opt:
+            supported = sorted({p.provider for p in catalog_providers})
+            raise AppError(
+                code="INVALID_PROVIDER_CONFIG",
+                message=f"{category} provider '{prov}' is not in catalog. Supported: {supported}",
+                status_code=400,
+            )
+        def_m = (
+            default_config.get("model")
+            if opt.provider == default_config.get("provider")
+            else opt.default_model
+        )
+        model = cfg["model"] if "model" in cfg and not cfg["model"] else (cfg.get("model") or def_m)
+        if not model or model not in opt.models:
+            raise AppError(
+                code="INVALID_PROVIDER_CONFIG",
+                message=(
+                    f"{category} model '{model}' is not supported by provider '{opt.provider}'. "
+                    f"Supported: {sorted(opt.models)}"
+                ),
+                status_code=400,
+            )
+        res = {**cfg, "provider": opt.provider, "model": model}
+        if category == "TTS":
+            voice = self._validate_tts_voice(cfg, opt, default_config)
+            if voice is not None:
+                res["voice"] = voice
+        return res
+
     async def _validate_configs(
         self,
         stt_config: dict[str, Any] | None,
         llm_config: dict[str, Any] | None,
         tts_config: dict[str, Any] | None,
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-        """Validate or populate default STT, LLM, and TTS configs against provider catalog."""
-        stt = {**DEFAULT_STT_CONFIG, **(stt_config or {})}
-        llm = {**DEFAULT_LLM_CONFIG, **(llm_config or {})}
-        tts = {**DEFAULT_TTS_CONFIG, **(tts_config or {})}
-
         catalog = await self.provider_service.get_catalog()
-
-        stt_models = {m for p in catalog.stt for m in p.models}
-        if stt.get("model") not in stt_models:
-            raise AppError(
-                code="INVALID_PROVIDER_CONFIG",
-                message=(
-                    f"STT model '{stt.get('model')}' is not in catalog. "
-                    f"Supported: {sorted(stt_models)}"
-                ),
-                status_code=400,
-            )
-
-        llm_models = {m for p in catalog.llm for m in p.models}
-        if llm.get("model") not in llm_models:
-            raise AppError(
-                code="INVALID_PROVIDER_CONFIG",
-                message=(
-                    f"LLM model '{llm.get('model')}' is not in catalog. "
-                    f"Supported: {sorted(llm_models)}"
-                ),
-                status_code=400,
-            )
-
-        tts_models = {m for p in catalog.tts for m in p.models}
-        if tts.get("model") not in tts_models:
-            raise AppError(
-                code="INVALID_PROVIDER_CONFIG",
-                message=(
-                    f"TTS model '{tts.get('model')}' is not in catalog. "
-                    f"Supported: {sorted(tts_models)}"
-                ),
-                status_code=400,
-            )
-
+        stt = self._validate_category_config("STT", stt_config, DEFAULT_STT_CONFIG, catalog.stt)
+        llm = self._validate_category_config("LLM", llm_config, DEFAULT_LLM_CONFIG, catalog.llm)
+        tts = self._validate_category_config("TTS", tts_config, DEFAULT_TTS_CONFIG, catalog.tts)
         return stt, llm, tts
 
     async def list_agents(self, organization_id: str) -> list[AgentResponse]:
-        """List all agents for an organization with their current pinned version."""
         agents = await self.repository.list_agents(organization_id)
         results: list[AgentResponse] = []
         for agent in agents:
-            current_version: AgentVersionResponse | None = None
-            if agent.get("current_version_id"):
-                raw_version = await self.repository.get_version_by_id(
-                    str(agent["current_version_id"])
-                )
-                if raw_version:
-                    current_version = AgentVersionResponse(**raw_version)
-            results.append(
-                AgentResponse(
-                    id=agent["id"],
-                    organization_id=agent["organization_id"],
-                    name=agent["name"],
-                    current_version_id=agent.get("current_version_id"),
-                    current_version=current_version,
-                    created_at=agent["created_at"],
-                    updated_at=agent["updated_at"],
-                )
+            raw_v = (
+                await self.repository.get_version_by_id(str(agent["current_version_id"]))
+                if agent.get("current_version_id")
+                else None
             )
+            results.append(self._build_response(agent, raw_v))
         return results
 
     async def get_agent(self, organization_id: str, agent_id: str) -> AgentResponse | None:
-        """Retrieve an agent by ID scoped to the tenant."""
-        agent = await self.repository.get_agent_by_id(organization_id, agent_id)
+        agent, _ = await self._get_agent_record(organization_id, agent_id)
         if not agent:
             return None
-        current_version: AgentVersionResponse | None = None
-        if agent.get("current_version_id"):
-            raw_version = await self.repository.get_version_by_id(str(agent["current_version_id"]))
-            if raw_version:
-                current_version = AgentVersionResponse(**raw_version)
-        return AgentResponse(
-            id=agent["id"],
-            organization_id=agent["organization_id"],
-            name=agent["name"],
-            current_version_id=agent.get("current_version_id"),
-            current_version=current_version,
-            created_at=agent["created_at"],
-            updated_at=agent["updated_at"],
+        raw_v = (
+            await self.repository.get_version_by_id(str(agent["current_version_id"]))
+            if agent.get("current_version_id")
+            else None
         )
+        return self._build_response(agent, raw_v)
 
     async def create_agent(
-        self,
-        organization_id: str,
-        data: AgentCreate,
-        user_id: str | None = None,
+        self, organization_id: str, data: AgentCreate, user_id: str | None = None
     ) -> AgentResponse:
-        """Create a new agent along with its initial version (v1)."""
         stt, llm, tts = await self._validate_configs(
             data.stt_config, data.llm_config, data.tts_config
         )
-
-        agent = await self.repository.create_agent(
-            organization_id=organization_id,
-            name=data.name,
-        )
+        agent = await self.repository.create_agent(organization_id=organization_id, name=data.name)
         version = await self.repository.create_version(
             agent_id=agent["id"],
             version_no=1,
@@ -148,20 +188,46 @@ class AgentService:
             max_duration_s=data.max_duration_s,
             created_by=user_id,
         )
-        updated_agent = await self.repository.set_current_version(
-            organization_id=organization_id,
-            agent_id=agent["id"],
-            version_id=version["id"],
+        updated = await self.repository.set_current_version(
+            organization_id=organization_id, agent_id=agent["id"], version_id=version["id"]
         )
-        agent_data = updated_agent or agent
-        return AgentResponse(
-            id=agent_data["id"],
-            organization_id=agent_data["organization_id"],
-            name=agent_data["name"],
-            current_version_id=version["id"],
-            current_version=AgentVersionResponse(**version),
-            created_at=agent_data["created_at"],
-            updated_at=agent_data["updated_at"],
+        return self._build_response(updated or agent, version)
+
+    async def _create_next_version(
+        self,
+        target_id: str,
+        data: AgentUpdate,
+        stt: dict[str, Any],
+        llm: dict[str, Any],
+        tts: dict[str, Any],
+        latest: dict[str, Any],
+        user_id: str | None,
+    ) -> dict[str, Any]:
+        next_ver = await self.repository.get_latest_version_no(target_id) + 1
+        prompt = (
+            data.system_prompt
+            if data.system_prompt is not None
+            else latest.get("system_prompt", "")
+        )
+        return await self.repository.create_version(
+            agent_id=target_id,
+            version_no=next_ver,
+            system_prompt=prompt,
+            greeting=data.greeting if data.greeting is not None else latest.get("greeting"),
+            stt_config=stt,
+            llm_config=llm,
+            tts_config=tts,
+            silence_timeout_s=(
+                data.silence_timeout_s
+                if data.silence_timeout_s is not None
+                else latest.get("silence_timeout_s", 15)
+            ),
+            max_duration_s=(
+                data.max_duration_s
+                if data.max_duration_s is not None
+                else latest.get("max_duration_s", 600)
+            ),
+            created_by=user_id,
         )
 
     async def update_agent(
@@ -171,13 +237,9 @@ class AgentService:
         data: AgentUpdate,
         user_id: str | None = None,
     ) -> AgentResponse | None:
-        """Update agent metadata or create a new immutable version if prompt/configs changed."""
-        agent = await self.repository.get_agent_by_id(organization_id, agent_id)
+        agent, _ = await self._get_agent_record(organization_id, agent_id)
         if not agent:
             return None
-
-        if data.name is not None and data.name != agent["name"]:
-            await self.repository.update_agent_name(organization_id, agent_id, data.name)
 
         has_version_change = any(
             x is not None
@@ -191,77 +253,46 @@ class AgentService:
                 data.max_duration_s,
             )
         )
+        stt, llm, tts = None, None, None
+        latest: dict[str, Any] = {}
 
         if has_version_change:
-            latest_version_dict: dict[str, Any] = {}
             if agent.get("current_version_id"):
                 v = await self.repository.get_version_by_id(str(agent["current_version_id"]))
                 if v:
-                    latest_version_dict = v
-
+                    latest = v
             stt, llm, tts = await self._validate_configs(
-                data.stt_config
-                if data.stt_config is not None
-                else latest_version_dict.get("stt_config", {}),
-                data.llm_config
-                if data.llm_config is not None
-                else latest_version_dict.get("llm_config", {}),
-                data.tts_config
-                if data.tts_config is not None
-                else latest_version_dict.get("tts_config", {}),
+                data.stt_config if data.stt_config is not None else latest.get("stt_config", {}),
+                data.llm_config if data.llm_config is not None else latest.get("llm_config", {}),
+                data.tts_config if data.tts_config is not None else latest.get("tts_config", {}),
             )
 
-            next_version_no = await self.repository.get_latest_version_no(agent_id) + 1
-            new_version = await self.repository.create_version(
-                agent_id=agent_id,
-                version_no=next_version_no,
-                system_prompt=(
-                    data.system_prompt
-                    if data.system_prompt is not None
-                    else latest_version_dict.get("system_prompt", "")
-                ),
-                greeting=(
-                    data.greeting
-                    if data.greeting is not None
-                    else latest_version_dict.get("greeting")
-                ),
-                stt_config=stt,
-                llm_config=llm,
-                tts_config=tts,
-                silence_timeout_s=(
-                    data.silence_timeout_s
-                    if data.silence_timeout_s is not None
-                    else latest_version_dict.get("silence_timeout_s", 15)
-                ),
-                max_duration_s=(
-                    data.max_duration_s
-                    if data.max_duration_s is not None
-                    else latest_version_dict.get("max_duration_s", 600)
-                ),
-                created_by=user_id,
-            )
-            await self.repository.set_current_version(organization_id, agent_id, new_version["id"])
+        target_id = agent["id"]
+        if data.name is not None and data.name != agent["name"]:
+            await self.repository.update_agent_name(organization_id, target_id, data.name)
 
-        return await self.get_agent(organization_id, agent_id)
+        if has_version_change and stt is not None and llm is not None and tts is not None:
+            new_v = await self._create_next_version(target_id, data, stt, llm, tts, latest, user_id)
+            await self.repository.set_current_version(organization_id, target_id, new_v["id"])
+
+        return await self.get_agent(organization_id, target_id)
 
     async def list_versions(
         self, organization_id: str, agent_id: str
     ) -> list[AgentVersionResponse]:
-        """List all versions for an agent after verifying tenant ownership."""
-        agent = await self.repository.get_agent_by_id(organization_id, agent_id)
+        agent, _ = await self._get_agent_record(organization_id, agent_id)
         if not agent:
             return []
-        versions = await self.repository.list_versions_by_agent_id(agent_id)
+        versions = await self.repository.list_versions_by_agent_id(agent["id"])
         return [AgentVersionResponse(**v) for v in versions]
 
     async def get_version(
         self, organization_id: str, agent_id: str, version_id: str
     ) -> AgentVersionResponse | None:
-        """Retrieve a specific version of an agent ensuring tenant ownership."""
-        agent = await self.repository.get_agent_by_id(organization_id, agent_id)
+        agent, canon = await self._get_agent_record(organization_id, agent_id)
         if not agent:
             return None
         version = await self.repository.get_version_by_id(version_id)
-        if not version or version.get("agent_id") != agent_id:
+        if not version or _canonical_uuid(version.get("agent_id")) != canon:
             return None
         return AgentVersionResponse(**version)

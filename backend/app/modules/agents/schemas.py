@@ -9,27 +9,27 @@ from pydantic import BaseModel, ConfigDict, Field
 class AgentCreate(BaseModel):
     """Payload to create a new agent with an initial version."""
 
-    name: str
-    system_prompt: str
+    name: str = Field(..., min_length=1, max_length=255)
+    system_prompt: str = Field(..., min_length=1)
     greeting: str | None = None
     stt_config: dict[str, Any] = Field(default_factory=dict)
     llm_config: dict[str, Any] = Field(default_factory=dict)
     tts_config: dict[str, Any] = Field(default_factory=dict)
-    silence_timeout_s: int = 15
-    max_duration_s: int = 600
+    silence_timeout_s: int = Field(default=15, ge=1, le=120)
+    max_duration_s: int = Field(default=600, ge=10, le=7200)
 
 
 class AgentUpdate(BaseModel):
     """Payload to update an agent's metadata or create a new pinned version."""
 
-    name: str | None = None
-    system_prompt: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    system_prompt: str | None = Field(default=None, min_length=1)
     greeting: str | None = None
     stt_config: dict[str, Any] | None = None
     llm_config: dict[str, Any] | None = None
     tts_config: dict[str, Any] | None = None
-    silence_timeout_s: int | None = None
-    max_duration_s: int | None = None
+    silence_timeout_s: int | None = Field(default=None, ge=1, le=120)
+    max_duration_s: int | None = Field(default=None, ge=10, le=7200)
 
 
 class AgentVersionResponse(BaseModel):
