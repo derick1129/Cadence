@@ -292,7 +292,8 @@ class AgentService:
         agent, canon = await self._get_agent_record(organization_id, agent_id)
         if not agent:
             return None
-        version = await self.repository.get_version_by_id(version_id)
+        canon_v = _canonical_uuid(version_id)
+        version = await self.repository.get_version_by_id(canon_v or version_id)
         if not version or _canonical_uuid(version.get("agent_id")) != canon:
             return None
         return AgentVersionResponse(**version)

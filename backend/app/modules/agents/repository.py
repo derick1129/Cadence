@@ -253,7 +253,7 @@ class AgentRepository:
                 "created_by": str(v.created_by) if v.created_by else None,
                 "created_at": v.created_at,
             }
-        return self._versions.get(version_id)
+        return self._versions.get(version_id) or self._versions.get(version_id.lower())
 
     async def list_versions_by_agent_id(self, agent_id: str) -> list[dict[str, Any]]:
         """List all immutable versions for a given agent in ascending version order."""
