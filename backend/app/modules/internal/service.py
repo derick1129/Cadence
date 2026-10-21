@@ -1,6 +1,8 @@
 """Internal worker gateway service."""
 
+import time
 import uuid
+from typing import Any
 
 from backend.app.core.errors import AppError
 from backend.app.modules.agents import AgentService
@@ -16,6 +18,11 @@ from backend.app.modules.internal.schemas import (
 )
 from backend.app.modules.sessions import SessionService
 from backend.app.modules.telephony import TelephonyService
+from backend.app.modules.tools import (
+    ToolRepository,
+    execute_http_tool,
+    validate_json_schema,
+)
 
 
 class InternalGatewayService:
@@ -28,33 +35,21 @@ class InternalGatewayService:
         session_service: SessionService | None = None,
         agent_service: AgentService | None = None,
         telephony_service: TelephonyService | None = None,
+        tool_repository: ToolRepository | None = None,
+        session_repository: Any | None = None,
     ) -> None:
-        self.session_service = session_service or SessionService()
+        if session_service is None and session_repository is not None:
+            self.session_service = SessionService(repository=session_repository)
+        else:
+            self.session_service = session_service or SessionService()
         self.agent_service = agent_service or AgentService()
         self.telephony_service = telephony_service or TelephonyService()
+        self.tool_repository = tool_repository or ToolRepository()
 
     async def get_runtime_config(self, session_id: str) -> RuntimeConfigResponse:
         """Fetch pinned agent version configuration and tool schemas for an active session."""
         session = await self.session_service.get_session_internal(session_id)
         if not session:
-            if session_id == "sess-mock-1":
-                return RuntimeConfigResponse(
-                    session_id=session_id,
-                    agent_id="agent-mock-1",
-                    agent_version_id="ver-mock-1",
-                    system_prompt="You are a helpful customer support agent for Cadence.",
-                    greeting="Hello! Thanks for calling. How can I help you today?",
-                    stt_config={"provider": "deepgram", "model": "nova-2"},
-                    llm_config={
-                        "provider": "openai",
-                        "model": "gpt-4o-mini",
-                        "temperature": 0.7,
-                    },
-                    tts_config={"provider": "cartesia", "voice_id": "sonic-english"},
-                    silence_timeout_s=15,
-                    max_duration_s=600,
-                    tools=[],
-                )
             raise AppError(
                 code="SESSION_NOT_FOUND",
                 message=f"Session '{session_id}' not found",
@@ -70,6 +65,18 @@ class InternalGatewayService:
                 status_code=404,
             )
 
+        tools_list: list[dict[str, Any]] = []
+        raw_tools = await self.tool_repository.get_tools_for_version(agent_version_id)
+        for t in raw_tools:
+            tools_list.append(
+                {
+                    "type": "function",
+                    "name": t["name"],
+                    "description": t.get("description") or f"Tool of type {t['type']}",
+                    "parameters": t.get("json_schema") or {"type": "object", "properties": {}},
+                }
+            )
+
         return RuntimeConfigResponse(
             session_id=session_id,
             agent_id=str(session["agent_id"]),
@@ -81,7 +88,7 @@ class InternalGatewayService:
             tts_config=version.tts_config,
             silence_timeout_s=int(version.silence_timeout_s),
             max_duration_s=version.max_duration_s,
-            tools=[],
+            tools=tools_list,
         )
 
     async def handle_sip_intake(self, request: SipIntakeRequest) -> SipIntakeResponse:
@@ -99,12 +106,90 @@ class InternalGatewayService:
 
     async def invoke_tool(self, session_id: str, request: ToolInvokeRequest) -> ToolInvokeResponse:
         """Execute customer tool on behalf of voice worker."""
+        start_time = time.perf_counter()
+        session = await self.session_service.get_session_internal(session_id)
+        if not session:
+            return ToolInvokeResponse(
+                tool_name=request.tool_name,
+                result=None,
+                status="failed",
+                latency_ms=0,
+                error=f"Session '{session_id}' not found",
+            )
+
+        agent_version_id = str(session["agent_version_id"])
+        tools = await self.tool_repository.get_tools_for_version(agent_version_id)
+        matching_tool = next((t for t in tools if t.get("name") == request.tool_name), None)
+        if not matching_tool:
+            elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+            return ToolInvokeResponse(
+                tool_name=request.tool_name,
+                result=None,
+                status="failed",
+                latency_ms=elapsed_ms,
+                error=f"Tool '{request.tool_name}' is not attached to session pinned version",
+            )
+
+        schema = matching_tool.get("json_schema")
+        if schema:
+            is_valid, validation_error = validate_json_schema(schema, request.arguments)
+            if not is_valid:
+                elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+                await self.tool_repository.record_tool_call(
+                    session_id=session_id,
+                    tool_id=matching_tool.get("id"),
+                    tool_name=request.tool_name,
+                    arguments=request.arguments,
+                    result=None,
+                    status="failed",
+                    latency_ms=elapsed_ms,
+                )
+                return ToolInvokeResponse(
+                    tool_name=request.tool_name,
+                    result=None,
+                    status="failed",
+                    latency_ms=elapsed_ms,
+                    error=f"Invalid arguments for tool '{request.tool_name}': {validation_error}",
+                )
+
+        tool_type = matching_tool.get("type", "http")
+        config = matching_tool.get("config", {})
+        if tool_type == "transfer":
+            target = config.get("phone_number", "+15550000000")
+            res_data: Any = {"action": "transfer", "target": target, "status": "initiated"}
+            status_str = "success"
+            error_msg = None
+        else:
+            exec_result = await execute_http_tool(config=config, arguments=request.arguments)
+            status_str = exec_result.get("status", "failed")
+            res_data = exec_result.get("result")
+            error_msg = exec_result.get("error")
+
+        elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+
+        await self.tool_repository.record_tool_call(
+            session_id=session_id,
+            tool_id=matching_tool.get("id"),
+            tool_name=request.tool_name,
+            arguments=request.arguments,
+            result=res_data,
+            status=status_str,
+            latency_ms=elapsed_ms,
+        )
+
+        if matching_tool.get("outcome_label") and status_str == "success":
+            await self.session_service.update_status_internal(
+                session_id=session_id,
+                status=session.get("status", "active"),
+                outcome_label=matching_tool["outcome_label"],
+            )
+
         return ToolInvokeResponse(
-            result={
-                "status": "completed",
-                "message": f"Tool {request.tool_name} executed successfully",
-            },
-            status="success",
+            tool_name=request.tool_name,
+            result=res_data,
+            status=status_str,
+            latency_ms=elapsed_ms,
+            error=error_msg,
         )
 
     async def finalize_session(

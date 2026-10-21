@@ -85,8 +85,13 @@ class ToolInvokeRequest(BaseModel):
 class ToolInvokeResponse(BaseModel):
     """Execution output returned to worker to feed back into LLM context."""
 
+    tool_name: str | None = None
     result: Any = None
-    status: str = "success"
+    status: str = "success"  # "success", "failed", "timeout"
+    latency_ms: int = 0
+    error: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EgressFinalizeRequest(BaseModel):

@@ -12,6 +12,7 @@ from backend.app.modules.agents.schemas import (
     AgentVersionResponse,
 )
 from backend.app.modules.providers import ProviderOption, ProviderService
+from backend.app.modules.tools import ToolRepository
 
 DEFAULT_STT_CONFIG = {"provider": "deepgram", "model": "nova-2"}
 DEFAULT_LLM_CONFIG = {"provider": "openai", "model": "gpt-4o-mini"}
@@ -35,9 +36,11 @@ class AgentService:
         self,
         repository: AgentRepository | None = None,
         provider_service: ProviderService | None = None,
+        tool_repository: ToolRepository | None = None,
     ) -> None:
         self.repository = repository or AgentRepository()
         self.provider_service = provider_service or ProviderService()
+        self.tool_repository = tool_repository or ToolRepository()
 
     def _build_response(
         self, agent: dict[str, Any], version: dict[str, Any] | None = None
@@ -169,9 +172,21 @@ class AgentService:
         )
         return self._build_response(agent, raw_v)
 
+    async def _validate_tools(self, organization_id: str, tool_ids: list[str]) -> None:
+        for tid in tool_ids:
+            tool = await self.tool_repository.get_tool_by_id(organization_id, tid)
+            if not tool:
+                raise AppError(
+                    code="TOOL_NOT_FOUND",
+                    message=f"Tool '{tid}' not found for organization",
+                    status_code=404,
+                )
+
     async def create_agent(
         self, organization_id: str, data: AgentCreate, user_id: str | None = None
     ) -> AgentResponse:
+        if data.tool_ids:
+            await self._validate_tools(organization_id, data.tool_ids)
         stt, llm, tts = await self._validate_configs(
             data.stt_config, data.llm_config, data.tts_config
         )
@@ -188,6 +203,8 @@ class AgentService:
             max_duration_s=data.max_duration_s,
             created_by=user_id,
         )
+        if data.tool_ids:
+            await self.tool_repository.attach_tools_to_version(version["id"], data.tool_ids)
         updated = await self.repository.set_current_version(
             organization_id=organization_id, agent_id=agent["id"], version_id=version["id"]
         )
@@ -241,7 +258,10 @@ class AgentService:
         if not agent:
             return None
 
-        has_version_change = any(
+        if data.tool_ids is not None:
+            await self._validate_tools(organization_id, data.tool_ids)
+
+        has_version_change = data.tool_ids is not None or any(
             x is not None
             for x in (
                 data.system_prompt,
@@ -272,8 +292,16 @@ class AgentService:
             await self.repository.update_agent_name(organization_id, target_id, data.name)
 
         if has_version_change and stt is not None and llm is not None and tts is not None:
+            prev_version_id = agent.get("current_version_id")
             new_v = await self._create_next_version(target_id, data, stt, llm, tts, latest, user_id)
             await self.repository.set_current_version(organization_id, target_id, new_v["id"])
+            if data.tool_ids is not None:
+                await self.tool_repository.attach_tools_to_version(new_v["id"], data.tool_ids)
+            elif prev_version_id:
+                prev_tools = await self.tool_repository.get_tools_for_version(str(prev_version_id))
+                prev_ids = [str(t["id"]) for t in prev_tools]
+                if prev_ids:
+                    await self.tool_repository.attach_tools_to_version(new_v["id"], prev_ids)
 
         return await self.get_agent(organization_id, target_id)
 
