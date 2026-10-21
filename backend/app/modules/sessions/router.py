@@ -9,8 +9,11 @@ from backend.app.core.errors import AppError
 from backend.app.modules.agents import AgentRepository, AgentService
 from backend.app.modules.sessions.repository import SessionRepository
 from backend.app.modules.sessions.schemas import (
+    RecordingUrlResponse,
     SessionListResponse,
+    SessionMetricResponse,
     SessionResponse,
+    TranscriptSegmentResponse,
     WebSessionStartRequest,
     WebSessionStartResponse,
 )
@@ -57,3 +60,33 @@ async def get_session(
     if not session:
         raise AppError(code="SESSION_NOT_FOUND", message="Session not found", status_code=404)
     return session
+
+
+@router.get("/{session_id}/transcript", response_model=list[TranscriptSegmentResponse])
+async def get_session_transcript(
+    session_id: str,
+    org_id: str = Depends(get_current_tenant_id),
+    service: SessionService = Depends(get_session_service),
+) -> list[TranscriptSegmentResponse]:
+    """Retrieve ordered transcript segments for a call."""
+    return await service.get_transcript(organization_id=org_id, session_id=session_id)
+
+
+@router.get("/{session_id}/metrics", response_model=SessionMetricResponse | None)
+async def get_session_metrics(
+    session_id: str,
+    org_id: str = Depends(get_current_tenant_id),
+    service: SessionService = Depends(get_session_service),
+) -> SessionMetricResponse | None:
+    """Retrieve turn latency and token usage metrics for a call."""
+    return await service.get_metrics(organization_id=org_id, session_id=session_id)
+
+
+@router.get("/{session_id}/recording-url", response_model=RecordingUrlResponse)
+async def get_recording_url(
+    session_id: str,
+    org_id: str = Depends(get_current_tenant_id),
+    service: SessionService = Depends(get_session_service),
+) -> RecordingUrlResponse:
+    """Get a short-lived presigned URL to stream or download call audio recording."""
+    return await service.get_recording_url(organization_id=org_id, session_id=session_id)
