@@ -11,7 +11,12 @@ from backend.app.modules.internal import router as internal_router
 from backend.app.modules.organizations import router as organizations_router
 from backend.app.modules.providers import router as providers_router
 from backend.app.modules.sessions import router as sessions_router
-from backend.app.modules.telephony import router as telephony_router
+from backend.app.modules.telephony.router import (
+    phone_numbers_router,
+)
+from backend.app.modules.telephony.router import (
+    router as telephony_router,
+)
 from backend.app.modules.tools import router as tools_router
 
 app = FastAPI(title="Cadence API", version="0.1.0")
@@ -39,6 +44,7 @@ app.include_router(api_v1_router)
 v1_router = APIRouter(prefix="/v1")
 v1_router.include_router(tools_router)
 v1_router.include_router(sessions_router)
+v1_router.include_router(phone_numbers_router)
 app.include_router(v1_router)
 
 # Mount root routers for backwards compatibility with test harnesses and frontend rewrites

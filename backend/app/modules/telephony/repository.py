@@ -65,15 +65,14 @@ class TelephonyRepository:
         if self.session is not None:
             try:
                 org_uuid = _parse_uuid(organization_id)
-                if org_uuid is None:
-                    return []
-                query = (
-                    select(PhoneNumber)
-                    .where(PhoneNumber.organization_id == org_uuid)
-                    .order_by(PhoneNumber.created_at.desc())
-                )
-                result = await self.session.execute(query)
-                return result.scalars().all()
+                if org_uuid is not None:
+                    query = (
+                        select(PhoneNumber)
+                        .where(PhoneNumber.organization_id == org_uuid)
+                        .order_by(PhoneNumber.created_at.desc())
+                    )
+                    result = await self.session.execute(query)
+                    return result.scalars().all()
             except (OSError, Exception):
                 await self._safe_rollback()
 
@@ -100,14 +99,13 @@ class TelephonyRepository:
             try:
                 org_uuid = _parse_uuid(organization_id)
                 pn_uuid = _parse_uuid(phone_number_id)
-                if org_uuid is None or pn_uuid is None:
-                    return None
-                query = select(PhoneNumber).where(
-                    PhoneNumber.id == pn_uuid,
-                    PhoneNumber.organization_id == org_uuid,
-                )
-                result = await self.session.execute(query)
-                return result.scalar_one_or_none()
+                if org_uuid is not None and pn_uuid is not None:
+                    query = select(PhoneNumber).where(
+                        PhoneNumber.id == pn_uuid,
+                        PhoneNumber.organization_id == org_uuid,
+                    )
+                    result = await self.session.execute(query)
+                    return result.scalar_one_or_none()
             except (OSError, Exception):
                 await self._safe_rollback()
 
@@ -212,16 +210,15 @@ class TelephonyRepository:
             try:
                 org_uuid = _parse_uuid(organization_id)
                 pn_uuid = _parse_uuid(phone_number_id)
-                if org_uuid is None or pn_uuid is None:
-                    return False
-                query = delete(PhoneNumber).where(
-                    PhoneNumber.id == pn_uuid,
-                    PhoneNumber.organization_id == org_uuid,
-                )
-                result = await self.session.execute(query)
-                await self.session.commit()
-                rowcount = getattr(result, "rowcount", 0)
-                return bool(rowcount and rowcount > 0)
+                if org_uuid is not None and pn_uuid is not None:
+                    query = delete(PhoneNumber).where(
+                        PhoneNumber.id == pn_uuid,
+                        PhoneNumber.organization_id == org_uuid,
+                    )
+                    result = await self.session.execute(query)
+                    await self.session.commit()
+                    rowcount = getattr(result, "rowcount", 0)
+                    return bool(rowcount and rowcount > 0)
             except (OSError, Exception):
                 await self._safe_rollback()
 
