@@ -108,3 +108,22 @@ class InternalGenericResponse(BaseModel):
     """Standard success acknowledgment for internal webhook and worker calls."""
 
     status: str = "ok"
+
+
+class SipInboundRequest(BaseModel):
+    """Payload sent by LiveKit SIP Dispatch on incoming carrier call."""
+
+    caller_e164: str
+    called_e164: str
+    sip_call_id: str
+
+
+class SipInboundResponse(BaseModel):
+    """Routing instructions and LiveKit token for inbound phone session."""
+
+    session_id: str
+    room_name: str
+    livekit_token: str
+    livekit_url: str
+    channel: str = "phone"
+    agent_id: str

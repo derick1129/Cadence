@@ -31,5 +31,13 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    @property
+    def internal_service_token(self) -> str:
+        return self.INTERNAL_SERVICE_TOKEN
+
+    @property
+    def livekit_url(self) -> str:
+        return self.LIVEKIT_URL
+
 
 settings = Settings()

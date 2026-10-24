@@ -1,7 +1,8 @@
-"""Internal worker and webhook router."""
+import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 
+from backend.app.core.livekit import generate_livekit_token
 from backend.app.core.security import compare_digest
 from backend.app.core.settings import settings
 from backend.app.modules.internal.schemas import (
@@ -9,6 +10,8 @@ from backend.app.modules.internal.schemas import (
     FinalizeSessionRequest,
     InternalGenericResponse,
     RuntimeConfigResponse,
+    SipInboundRequest,
+    SipInboundResponse,
     SipIntakeRequest,
     SipIntakeResponse,
     ToolInvokeRequest,
@@ -64,6 +67,77 @@ async def sip_intake(
 ) -> SipIntakeResponse:
     """Resolve dialed SIP number to agent and return room configuration."""
     return await service.handle_sip_intake(request)
+
+
+@router.post(
+    "/sip/inbound",
+    response_model=SipInboundResponse,
+    dependencies=[Depends(verify_internal_token)],
+)
+async def handle_sip_inbound(
+    request: SipInboundRequest,
+    service: InternalGatewayService = Depends(get_internal_service),
+) -> SipInboundResponse:
+    """LiveKit SIP inbound call intake. Maps dialed E.164 to agent and initiates session."""
+    telephony_service = service.telephony_service
+    agent_repo = service.agent_service.repository
+    session_repo = service.session_service.repository
+
+    phone_record = await telephony_service.get_by_e164(request.called_e164)
+    if not phone_record or not phone_record.agent_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No agent assigned to this phone number",
+        )
+
+    agent = await agent_repo.get_agent_by_id(
+        str(phone_record.organization_id), str(phone_record.agent_id)
+    )
+    current_version_id = (
+        (
+            agent.get("current_version_id")
+            if isinstance(agent, dict)
+            else getattr(agent, "current_version_id", None)
+        )
+        if agent
+        else None
+    )
+    if not agent or not current_version_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Configured agent has no active version",
+        )
+
+    session_id = uuid.uuid4()
+    room_name = f"cadence-phone-{session_id}"
+
+    new_session = await session_repo.create_session(
+        organization_id=str(phone_record.organization_id),
+        agent_id=str(phone_record.agent_id),
+        agent_version_id=str(current_version_id),
+        channel="phone",
+        room_name=room_name,
+    )
+    new_session_id = str(
+        new_session["id"]
+        if isinstance(new_session, dict)
+        else getattr(new_session, "id", session_id)
+    )
+
+    livekit_token = generate_livekit_token(
+        room_name=room_name,
+        participant_identity=f"phone-{request.caller_e164}",
+        session_id=new_session_id,
+    )
+
+    return SipInboundResponse(
+        session_id=new_session_id,
+        room_name=room_name,
+        livekit_token=livekit_token,
+        livekit_url=settings.livekit_url,
+        channel="phone",
+        agent_id=str(phone_record.agent_id),
+    )
 
 
 @router.post(
