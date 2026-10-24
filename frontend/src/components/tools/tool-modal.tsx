@@ -16,20 +16,31 @@ export interface ToolModalProps {
   }) => void;
 }
 
+const E164_REGEX = /^\+[1-9]\d{1,14}$/;
+
 export const ToolModal: React.FC<ToolModalProps> = ({ isOpen, onClose, onSubmit }) => {
   const [name, setName] = React.useState("");
   const [type, setType] = React.useState<"http" | "transfer">("http");
   const [url, setUrl] = React.useState("");
   const [transferNumber, setTransferNumber] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (type === "transfer") {
+      const trimmed = transferNumber.trim();
+      if (!E164_REGEX.test(trimmed)) {
+        setError("Invalid phone number. Must be in E.164 format (e.g. +15551234567).");
+        return;
+      }
+    }
+    setError(null);
     onSubmit({
       name,
       type,
-      config: type === "http" ? { url, method: "POST" } : { phone_number: transferNumber },
+      config: type === "http" ? { url, method: "POST" } : { phone_number: transferNumber.trim() },
       json_schema: { type: "object", properties: {}, required: [] },
     });
     setName("");
@@ -69,7 +80,10 @@ export const ToolModal: React.FC<ToolModalProps> = ({ isOpen, onClose, onSubmit 
             <label className="block text-xs font-semibold text-[var(--muted)] mb-1 uppercase">Type</label>
             <select
               value={type}
-              onChange={(e) => setType(e.target.value as "http" | "transfer")}
+              onChange={(e) => {
+                setType(e.target.value as "http" | "transfer");
+                setError(null);
+              }}
               className="w-full px-3 py-2 text-sm bg-[var(--bg)] border border-[var(--line)] rounded-lg text-[var(--fg)]"
             >
               <option value="http">HTTP Webhook</option>
@@ -95,16 +109,32 @@ export const ToolModal: React.FC<ToolModalProps> = ({ isOpen, onClose, onSubmit 
               <input
                 type="text"
                 required
+                pattern="^\+[1-9]\d{1,14}$"
                 placeholder="+15551234567"
                 value={transferNumber}
-                onChange={(e) => setTransferNumber(e.target.value)}
+                onChange={(e) => {
+                  setTransferNumber(e.target.value);
+                  setError(null);
+                }}
                 className="w-full px-3 py-2 text-sm bg-[var(--bg)] border border-[var(--line)] rounded-lg text-[var(--fg)] focus:outline-none focus:border-[var(--accent)]"
               />
+              {error && (
+                <p className="text-xs text-red-500 font-medium mt-1" role="alert">
+                  {error}
+                </p>
+              )}
             </div>
           )}
 
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--line)]">
-            <Button type="button" variant="secondary" onClick={onClose}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setError(null);
+                onClose();
+              }}
+            >
               Cancel
             </Button>
             <Button type="submit" variant="primary">

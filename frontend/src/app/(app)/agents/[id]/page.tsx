@@ -18,6 +18,7 @@ export default function AgentDetailPage({ params }: PageProps) {
   const { data: versions = [], mutate: mutateVersions } = useAgentVersions(id);
 
   const [saveSuccess, setSaveSuccess] = React.useState(false);
+  const [saveError, setSaveError] = React.useState<string | null>(null);
   const [showTestCall, setShowTestCall] = React.useState(false);
 
   const currentVersion = versions.length > 0 ? versions[versions.length - 1] : null;
@@ -29,20 +30,16 @@ export default function AgentDetailPage({ params }: PageProps) {
     model: string;
     silence_timeout_s: number;
   }) => {
+    setSaveError(null);
     try {
-      await apiClient(`/v1/agents/${id}/versions`, {
-        method: "POST",
+      await apiClient(`/v1/agents/${id}`, {
+        method: "PATCH",
         body: JSON.stringify({
           system_prompt: payload.system_prompt,
           greeting: payload.greeting,
-          llm_config: { provider: "openai", model: payload.model },
-          tts_config: {
-            provider: payload.voice.includes("eleven") ? "elevenlabs" : "cartesia",
-            voice: payload.voice,
-          },
-          stt_config: { provider: "deepgram", model: "nova-2" },
           silence_timeout_s: payload.silence_timeout_s,
-          max_duration_s: 1800,
+          llm_config: { provider: "openai", model: payload.model },
+          tts_config: { provider: "cartesia", voice: payload.voice },
         }),
       });
       await Promise.all([mutateAgent(), mutateVersions()]);
@@ -50,6 +47,7 @@ export default function AgentDetailPage({ params }: PageProps) {
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       console.error("Failed to save agent version:", err);
+      setSaveError(err instanceof Error ? err.message : "Failed to save agent version");
     }
   };
 
@@ -117,6 +115,11 @@ export default function AgentDetailPage({ params }: PageProps) {
           <div className="flex items-center gap-1.5 text-xs text-[var(--accent)] font-medium">
             <CheckCircle2 className="w-4 h-4" />
             <span>New version saved successfully</span>
+          </div>
+        )}
+        {saveError && (
+          <div className="flex items-center gap-1.5 text-xs text-red-500 font-medium" role="alert">
+            <span>{saveError}</span>
           </div>
         )}
       </div>

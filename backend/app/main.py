@@ -42,6 +42,7 @@ api_v1_router.include_router(sessions_router)
 app.include_router(api_v1_router)
 
 v1_router = APIRouter(prefix="/v1")
+v1_router.include_router(agents_router)
 v1_router.include_router(tools_router)
 v1_router.include_router(sessions_router)
 v1_router.include_router(phone_numbers_router)

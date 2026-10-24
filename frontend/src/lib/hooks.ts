@@ -61,7 +61,11 @@ export interface ToolDTO {
 }
 
 export function useAgents() {
-  return useSWR<AgentDTO[]>("/v1/agents", (url: string) => apiClient<AgentDTO[]>(url));
+  return useSWR<AgentDTO[]>("/v1/agents", (url: string) =>
+    apiClient<{ items?: AgentDTO[] } | AgentDTO[]>(url).then((res) =>
+      Array.isArray(res) ? res : res?.items || []
+    )
+  );
 }
 
 export function useAgent(id?: string) {
@@ -104,5 +108,9 @@ export function useRecordingUrl(sessionId?: string) {
 }
 
 export function useTools() {
-  return useSWR<ToolDTO[]>("/v1/tools", (url: string) => apiClient<ToolDTO[]>(url));
+  return useSWR<ToolDTO[]>("/v1/tools", (url: string) =>
+    apiClient<{ items?: ToolDTO[] } | ToolDTO[]>(url).then((res) =>
+      Array.isArray(res) ? res : res?.items || []
+    )
+  );
 }

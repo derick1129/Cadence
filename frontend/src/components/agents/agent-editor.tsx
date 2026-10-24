@@ -32,11 +32,18 @@ export const AgentEditor: React.FC<AgentEditorProps> = ({ agent, onSave, onTestC
   const [voice, setVoice] = React.useState(agent.voice);
   const [model, setModel] = React.useState(agent.model);
   const [silenceTimeout, setSilenceTimeout] = React.useState(agent.silenceTimeout);
+  const [error, setError] = React.useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedPrompt = systemPrompt.trim();
+    if (!trimmedPrompt) {
+      setError("System prompt is required and cannot be empty.");
+      return;
+    }
+    setError(null);
     onSave({
-      system_prompt: systemPrompt,
+      system_prompt: trimmedPrompt,
       greeting,
       voice,
       model,
@@ -89,9 +96,17 @@ export const AgentEditor: React.FC<AgentEditorProps> = ({ agent, onSave, onTestC
           <textarea
             rows={8}
             value={systemPrompt}
-            onChange={(e) => setSystemPrompt(e.target.value)}
+            onChange={(e) => {
+              setSystemPrompt(e.target.value);
+              if (error) setError(null);
+            }}
             className="w-full px-3 py-2 text-sm font-mono bg-[var(--card)] border border-[var(--line)] rounded-lg text-[var(--fg)] focus:outline-none focus:border-[var(--accent)] leading-relaxed"
           />
+          {error && (
+            <p className="text-xs text-red-500 font-medium mt-1" role="alert">
+              {error}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

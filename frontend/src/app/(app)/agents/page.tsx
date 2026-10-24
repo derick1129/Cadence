@@ -12,21 +12,27 @@ export default function AgentsPage() {
   const [isCreating, setIsCreating] = React.useState(false);
   const [newAgentName, setNewAgentName] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   const handleCreateAgent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAgentName.trim()) return;
     setIsSubmitting(true);
+    setError(null);
     try {
       await apiClient("/v1/agents", {
         method: "POST",
-        body: JSON.stringify({ name: newAgentName.trim() }),
+        body: JSON.stringify({
+          name: newAgentName.trim(),
+          system_prompt: "You are a helpful customer support voice assistant.",
+        }),
       });
       setNewAgentName("");
       setIsCreating(false);
       await mutate();
     } catch (err) {
       console.error("Failed to create agent:", err);
+      setError(err instanceof Error ? err.message : "Failed to create agent");
     } finally {
       setIsSubmitting(false);
     }
@@ -59,6 +65,11 @@ export default function AgentsPage() {
           className="p-4 bg-[var(--card)] border border-[var(--line)] rounded-xl space-y-3"
         >
           <h3 className="text-sm font-semibold text-[var(--fg)]">New Agent Name</h3>
+          {error && (
+            <p className="text-xs text-red-500 font-medium" role="alert">
+              {error}
+            </p>
+          )}
           <div className="flex gap-3">
             <input
               type="text"
@@ -74,7 +85,10 @@ export default function AgentsPage() {
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setIsCreating(false)}
+              onClick={() => {
+                setIsCreating(false);
+                setError(null);
+              }}
             >
               Cancel
             </Button>
