@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { useAgent, useAgentVersions } from "@/lib/hooks";
 import { apiClient } from "@/lib/api";
 import { AgentEditor } from "@/components/agents/agent-editor";
+import { TestCallPanel } from "@/components/voice/test-call-panel";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -128,16 +129,11 @@ export default function AgentDetailPage({ params }: PageProps) {
 
       {showTestCall && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="p-6 bg-[var(--card)] border border-[var(--line)] rounded-xl space-y-4 max-w-md w-full">
-            <h3 className="text-base font-semibold text-[var(--fg)]">Test Call</h3>
-            <p className="text-xs text-[var(--muted)]">Testing agent {agent.name}</p>
-            <button
-              onClick={() => setShowTestCall(false)}
-              className="px-4 py-2 text-xs bg-[var(--line)] hover:bg-[var(--line)]/80 text-[var(--fg)] rounded-lg"
-            >
-              Close
-            </button>
-          </div>
+          <TestCallPanel
+            agentId={agent.id}
+            onStartCall={handleStartCall}
+            onClose={() => setShowTestCall(false)}
+          />
         </div>
       )}
     </div>
