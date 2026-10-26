@@ -4,6 +4,8 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from backend.app.core.errors import AppError, app_error_handler
+from backend.app.core.security import create_access_token
 from backend.app.modules.agents import (
     AgentCreate,
     AgentService,
@@ -23,6 +25,7 @@ def agent_service() -> AgentService:
 def agent_app(agent_service: AgentService) -> FastAPI:
     """FastAPI test app containing the agents router."""
     app = FastAPI()
+    app.add_exception_handler(AppError, app_error_handler)  # type: ignore[arg-type]
     app.include_router(router)
     app.dependency_overrides[get_agent_service] = lambda: agent_service
     return app
@@ -113,10 +116,19 @@ async def test_agent_router_http(agent_app: FastAPI) -> None:
     """Test HTTP endpoints for agents including headers and error handling."""
     transport = ASGITransport(app=agent_app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
+        token_http = create_access_token(
+            {"sub": "usr-test", "organization_id": "org-http", "role": "admin"}
+        )
+        headers_http = {"Authorization": f"Bearer {token_http}"}
+        token_other = create_access_token(
+            {"sub": "usr-other", "organization_id": "org-other", "role": "admin"}
+        )
+        headers_other = {"Authorization": f"Bearer {token_other}"}
+
         # Create agent
         resp = await client.post(
             "/agents",
-            headers={"X-Organization-Id": "org-http"},
+            headers=headers_http,
             json={
                 "name": "Support Bot",
                 "system_prompt": "Support prompt",
@@ -130,7 +142,7 @@ async def test_agent_router_http(agent_app: FastAPI) -> None:
         # List agents
         list_resp = await client.get(
             "/agents",
-            headers={"X-Organization-Id": "org-http"},
+            headers=headers_http,
         )
         assert list_resp.status_code == 200
         assert len(list_resp.json()) == 1
@@ -138,14 +150,14 @@ async def test_agent_router_http(agent_app: FastAPI) -> None:
         # Cross-tenant get should return 404
         cross_resp = await client.get(
             f"/agents/{agent_id}",
-            headers={"X-Organization-Id": "org-other"},
+            headers=headers_other,
         )
         assert cross_resp.status_code == 404
 
         # Same-tenant get
         get_resp = await client.get(
             f"/agents/{agent_id}",
-            headers={"X-Organization-Id": "org-http"},
+            headers=headers_http,
         )
         assert get_resp.status_code == 200
         assert get_resp.json()["id"] == agent_id

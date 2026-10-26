@@ -1,5 +1,7 @@
-"""Agent module public interface."""
+"""Agents domain module."""
 
+from backend.app.modules.agents.models import Agent, AgentVersion
+from backend.app.modules.agents.repository import AgentRepository
 from backend.app.modules.agents.router import router
 from backend.app.modules.agents.schemas import (
     AgentCreate,
@@ -10,10 +12,13 @@ from backend.app.modules.agents.schemas import (
 from backend.app.modules.agents.service import AgentService
 
 __all__ = [
-    "AgentCreate",
-    "AgentResponse",
+    "Agent",
+    "AgentVersion",
+    "AgentRepository",
     "AgentService",
-    "AgentUpdate",
-    "AgentVersionResponse",
     "router",
+    "AgentCreate",
+    "AgentUpdate",
+    "AgentResponse",
+    "AgentVersionResponse",
 ]
