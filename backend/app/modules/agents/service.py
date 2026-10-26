@@ -297,3 +297,11 @@ class AgentService:
         if not version or _canonical_uuid(version.get("agent_id")) != canon:
             return None
         return AgentVersionResponse(**version)
+
+    async def get_version_internal(self, version_id: str) -> AgentVersionResponse | None:
+        """Fetch an agent version by ID for internal worker gateway configuration."""
+        canon_v = _canonical_uuid(version_id)
+        version = await self.repository.get_version_by_id(canon_v or version_id)
+        if not version:
+            return None
+        return AgentVersionResponse(**version)

@@ -1,5 +1,7 @@
 """Sessions module public interface."""
 
+from backend.app.modules.sessions.models import Session
+from backend.app.modules.sessions.repository import SessionRepository
 from backend.app.modules.sessions.router import router
 from backend.app.modules.sessions.schemas import (
     SessionListResponse,
@@ -10,10 +12,12 @@ from backend.app.modules.sessions.schemas import (
 from backend.app.modules.sessions.service import SessionService
 
 __all__ = [
-    "SessionListResponse",
-    "SessionResponse",
+    "Session",
+    "SessionRepository",
     "SessionService",
     "WebSessionStartRequest",
     "WebSessionStartResponse",
+    "SessionListResponse",
+    "SessionResponse",
     "router",
 ]

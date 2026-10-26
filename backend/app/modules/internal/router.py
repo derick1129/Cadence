@@ -24,14 +24,12 @@ async def verify_internal_token(
     x_internal_service_token: str | None = Header(None, alias="X-Internal-Service-Token"),
 ) -> None:
     """Verify internal worker service token using constant-time comparison."""
-    if settings.ENVIRONMENT != "development" and not x_internal_service_token:
+    if not x_internal_service_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing internal service token",
         )
-    if x_internal_service_token and not secrets.compare_digest(
-        x_internal_service_token, settings.INTERNAL_SERVICE_TOKEN
-    ):
+    if not secrets.compare_digest(x_internal_service_token, settings.INTERNAL_SERVICE_TOKEN):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid internal service token",

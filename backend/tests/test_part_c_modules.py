@@ -63,10 +63,23 @@ async def test_telephony_service_and_endpoints(test_app: FastAPI) -> None:
 @pytest.mark.asyncio
 async def test_sessions_service_and_endpoints(test_app: FastAPI) -> None:
     """Verify SessionService and its HTTP endpoints."""
+    from backend.app.core.security import create_access_token
+    from backend.app.modules.agents.schemas import AgentCreate
+    from backend.app.modules.sessions.router import get_session_service
+
     service = SessionService()
+    test_app.dependency_overrides[get_session_service] = lambda: service
+
+    # 1. Create agent for org-test-1
+    agent = await service.agent_service.create_agent(
+        organization_id="org-test-1",
+        data=AgentCreate(name="Mock Agent", system_prompt="Test"),
+    )
+    agent_id = agent.id
+
     start_res = await service.start_web_session(
         organization_id="org-test-1",
-        request=WebSessionStartRequest(agent_id="agent-mock-1"),
+        request=WebSessionStartRequest(agent_id=agent_id),
     )
     assert start_res.session_id.startswith("sess-")
     assert "cadence-room-" in start_res.room_name
@@ -75,17 +88,23 @@ async def test_sessions_service_and_endpoints(test_app: FastAPI) -> None:
     list_res = await service.list_sessions(organization_id="org-test-1")
     assert list_res.total >= 1
 
+    token = create_access_token(
+        data={"sub": "usr-c", "organization_id": "org-test-1", "role": "owner"}
+    )
+    headers = {"Authorization": f"Bearer {token}"}
+
     async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as client:
         res = await client.post(
-            "/sessions/web?organization_id=org-test-1",
-            json={"agent_id": "agent-mock-1"},
+            "/sessions/web",
+            headers=headers,
+            json={"agent_id": agent_id},
         )
         assert res.status_code == 201
         data = res.json()
         assert "session_id" in data
         assert "room_name" in data
 
-        res = await client.get("/sessions?organization_id=org-test-1")
+        res = await client.get("/sessions", headers=headers)
         assert res.status_code == 200
         assert res.json()["total"] >= 1
 
