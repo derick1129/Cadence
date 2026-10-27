@@ -13,10 +13,13 @@ from backend.app.modules.agents.models import Agent, AgentVersion
 class AgentRepository:
     """Repository handling persistence for agents and immutable versions."""
 
+    _shared_agents: dict[str, dict[str, Any]] = {}
+    _shared_versions: dict[str, dict[str, Any]] = {}
+
     def __init__(self, session: AsyncSession | None = None) -> None:
         self.session = session
-        self._agents: dict[str, dict[str, Any]] = {}
-        self._versions: dict[str, dict[str, Any]] = {}
+        self._agents = self._shared_agents
+        self._versions = self._shared_versions
 
     async def list_agents(self, organization_id: str) -> list[dict[str, Any]]:
         """List all agents belonging to an organization."""

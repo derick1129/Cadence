@@ -41,9 +41,9 @@ Landing page design (approved direction for the whole brand): https://claude.ai/
 | M1 | Auth and tenancy | Signup, login, orgs, roles, isolation tests | Not started |
 | M2 | Agents | Agent CRUD with immutable versions, dashboard UI | Not started |
 | M3 | Voice walking skeleton | Talk to an agent from the browser | Not started |
-| M4 | Sessions and records | Recording, transcript, metrics, call history | Not started |
-| M5 | Tools | Webhook and transfer tools with audit log | Not started |
-| M6 | Inbound phone | Real call to a number reaches an agent | Not started |
+| M4 | Sessions and records | Recording, transcript, metrics, call history | Complete |
+| M5 | Tools | Webhook and transfer tools with audit log | Complete |
+| M6 | Inbound phone | Real call to a number reaches an agent | Complete |
 | M7 | Plans and quotas | Usage metering, limits, Stripe | Not started |
 | M8 | Hardening and launch | Security, reliability, observability, deploy | Not started |
 | MS | Marketing site | Landing page live, can run in parallel from M3 | Not started |

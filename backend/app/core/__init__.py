@@ -23,6 +23,7 @@ from backend.app.core.security import (
     verify_password,
 )
 from backend.app.core.settings import Settings, settings
+from backend.app.core.storage import generate_presigned_s3_url
 
 __all__ = [
     "AppError",
@@ -37,6 +38,7 @@ __all__ = [
     "compare_digest",
     "create_access_token",
     "decode_access_token",
+    "generate_presigned_s3_url",
     "generate_secure_token",
     "get_current_tenant_id",
     "get_current_user_id",

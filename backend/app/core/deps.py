@@ -47,7 +47,7 @@ async def get_token_claims(
         ) from exc
 
     raw_user_id = payload.get("sub")
-    raw_org_id = payload.get("organization_id")
+    raw_org_id = payload.get("organization_id") or payload.get("org")
     raw_role = payload.get("role")
 
     user_id = str(raw_user_id) if raw_user_id is not None else ""
@@ -85,16 +85,24 @@ async def get_current_tenant_id(
     return claims.organization_id
 
 
-def require_roles(allowed_roles: set[str]) -> Callable[..., Awaitable[TokenClaims]]:
+def require_roles(
+    allowed_roles: set[str] | list[str] | tuple[str, ...],
+) -> Callable[..., Awaitable[TokenClaims]]:
     """Dependency factory checking user role matches permitted set."""
+    roles_set = set(allowed_roles)
 
     async def _role_checker(claims: TokenClaims = Depends(get_token_claims)) -> TokenClaims:
-        if claims.role not in allowed_roles:
+        if claims.role not in roles_set:
             raise AppError(
                 code="FORBIDDEN",
-                message=f"Action requires one of roles: {', '.join(sorted(allowed_roles))}",
+                message=f"Action requires one of roles: {', '.join(sorted(roles_set))}",
                 status_code=403,
             )
         return claims
 
     return _role_checker
+
+
+require_role = require_roles
+get_current_user = get_token_claims
+TokenData = TokenClaims

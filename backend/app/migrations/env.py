@@ -13,6 +13,9 @@ import backend.app.modules.auth.models  # noqa: F401
 import backend.app.modules.organizations.models  # noqa: F401
 from backend.app.core.base import Base
 from backend.app.core.settings import settings
+from backend.app.modules.sessions.models import Session, SessionMetric, TranscriptSegment  # noqa: F401
+from backend.app.modules.telephony.models import PhoneNumber  # noqa: F401
+from backend.app.modules.tools.models import AgentTool, Tool, ToolCall  # noqa: F401
 
 config = context.config
 

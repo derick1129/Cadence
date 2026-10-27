@@ -12,6 +12,11 @@ from backend.app.modules.providers.service import (
     STTProvider,
     TTSProvider,
 )
+from backend.app.modules.providers.telephony import (
+    TelephonyProvider,
+    TwilioSIPProvider,
+    validate_e164_format,
+)
 
 __all__ = [
     "CatalogResponse",
@@ -21,5 +26,8 @@ __all__ = [
     "ProviderService",
     "STTProvider",
     "TTSProvider",
+    "TelephonyProvider",
+    "TwilioSIPProvider",
     "router",
+    "validate_e164_format",
 ]

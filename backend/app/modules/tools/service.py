@@ -3,20 +3,32 @@
 import time
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.app.modules.tools.repository import ToolRepository
 from backend.app.modules.tools.schemas import (
     ToolCreate,
     ToolInvokeRequest,
     ToolInvokeResponse,
     ToolResponse,
+    ToolUpdate,
 )
 
 
 class ToolService:
     """Service handling custom tool management, schema validation, and execution."""
 
-    def __init__(self, repository: ToolRepository | None = None) -> None:
-        self.repository = repository or ToolRepository()
+    def __init__(
+        self,
+        repository: ToolRepository | None = None,
+        session: AsyncSession | None = None,
+    ) -> None:
+        if repository is not None:
+            self.repository = repository
+        elif session is not None:
+            self.repository = ToolRepository(session=session)
+        else:
+            self.repository = ToolRepository()
 
     async def list_tools(self, organization_id: str) -> list[ToolResponse]:
         """List all tools registered for the organization."""
@@ -41,6 +53,31 @@ class ToolService:
             outcome_label=data.outcome_label,
         )
         return ToolResponse(**tool)
+
+    async def delete_tool(self, organization_id: str, tool_id: str) -> bool:
+        """Delete a tool by ID scoped to the organization."""
+        return await self.repository.delete_tool(organization_id=organization_id, tool_id=tool_id)
+
+    async def update_tool(
+        self,
+        organization_id: str,
+        tool_id: str,
+        data: ToolUpdate,
+    ) -> ToolResponse | None:
+        """Update an existing tool's definition partially."""
+        updates = data.model_dump(exclude_unset=True)
+        if not updates:
+            tool = await self.repository.get_tool_by_id(organization_id, tool_id)
+            return ToolResponse(**tool) if tool else None
+
+        updated = await self.repository.update_tool(
+            organization_id=organization_id,
+            tool_id=tool_id,
+            updates=updates,
+        )
+        if not updated:
+            return None
+        return ToolResponse(**updated)
 
     async def invoke_tool(
         self,
@@ -80,3 +117,7 @@ class ToolService:
             latency_ms=elapsed_ms,
             error=None,
         )
+
+    async def list_tool_calls_for_session(self, session_id: str) -> list[dict[str, Any]]:
+        """List audit log records for tool executions during a session."""
+        return await self.repository.list_tool_calls_for_session(session_id)

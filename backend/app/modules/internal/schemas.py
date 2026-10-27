@@ -23,15 +23,37 @@ class RuntimeConfigResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TranscriptSegmentInput(BaseModel):
+    """Dialogue turn input from worker finalization."""
+
+    seq: int = Field(ge=0, description="Sequential turn index")
+    speaker: str = Field(description="'caller' or 'agent'")
+    text: str = Field(description="Transcribed turn text")
+    started_at_ms: int = Field(default=0, description="Turn start offset in milliseconds")
+
+
+class SessionMetricsInput(BaseModel):
+    """Aggregate metrics reported by worker on call conclusion."""
+
+    avg_latency_ms: int | None = Field(
+        default=None, description="Average voice pipeline turn latency"
+    )
+    p95_latency_ms: int | None = Field(default=None, description="95th percentile turn latency")
+    interruption_count: int = Field(default=0, description="Caller barge-in interruptions")
+    llm_tokens_used: int = Field(default=0, description="Total tokens consumed across LLM turns")
+    stt_seconds_billed: float = Field(default=0.0, description="Billed STT audio duration")
+    tts_characters_billed: int = Field(default=0, description="Billed TTS character count")
+
+
 class FinalizeSessionRequest(BaseModel):
     """Payload sent by the worker when a session disconnects or completes."""
 
-    status: str = "completed"
-    outcome: str | None = "completed"
-    outcome_label: str | None = None
-    duration_s: int = 0
-    transcript_segments: list[dict[str, Any]] = Field(default_factory=list)
-    metrics: dict[str, Any] | None = None
+    status: str = Field(default="completed", description="Final session status")
+    outcome: str | None = Field(default="completed", description="High-level call outcome")
+    outcome_label: str | None = Field(default=None, description="Granular outcome categorization")
+    duration_s: int = Field(default=0, ge=0, description="Call duration in seconds")
+    transcript_segments: list[TranscriptSegmentInput] = Field(default_factory=list)
+    metrics: SessionMetricsInput | None = None
     interruption_count: int = 0
 
 
@@ -63,8 +85,13 @@ class ToolInvokeRequest(BaseModel):
 class ToolInvokeResponse(BaseModel):
     """Execution output returned to worker to feed back into LLM context."""
 
+    tool_name: str | None = None
     result: Any = None
-    status: str = "success"
+    status: str = "success"  # "success", "failed", "timeout"
+    latency_ms: int = 0
+    error: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EgressFinalizeRequest(BaseModel):
@@ -81,3 +108,22 @@ class InternalGenericResponse(BaseModel):
     """Standard success acknowledgment for internal webhook and worker calls."""
 
     status: str = "ok"
+
+
+class SipInboundRequest(BaseModel):
+    """Payload sent by LiveKit SIP Dispatch on incoming carrier call."""
+
+    caller_e164: str
+    called_e164: str
+    sip_call_id: str
+
+
+class SipInboundResponse(BaseModel):
+    """Routing instructions and LiveKit token for inbound phone session."""
+
+    session_id: str
+    room_name: str
+    livekit_token: str
+    livekit_url: str
+    channel: str = "phone"
+    agent_id: str

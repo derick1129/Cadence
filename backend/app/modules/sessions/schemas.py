@@ -47,3 +47,40 @@ class WebSessionStartResponse(BaseModel):
     livekit_token: str
     livekit_url: str
     agent_id: str
+
+
+class TranscriptSegmentResponse(BaseModel):
+    """Spoken dialogue turn response."""
+
+    id: str
+    session_id: str
+    seq: int
+    speaker: str
+    text: str
+    started_at_ms: int = 0
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SessionMetricResponse(BaseModel):
+    """Aggregate session latency and usage metrics response."""
+
+    id: str
+    session_id: str
+    avg_latency_ms: int | None = None
+    p95_latency_ms: int | None = None
+    interruption_count: int = 0
+    llm_tokens_used: int = 0
+    stt_seconds_billed: float = 0.0
+    tts_characters_billed: int = 0
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RecordingUrlResponse(BaseModel):
+    """Presigned time-limited access URL for call audio playback."""
+
+    recording_url: str
+    expires_in_seconds: int = 900
