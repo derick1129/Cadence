@@ -63,7 +63,7 @@ class ProviderCatalogRepository:
                     "provider": "cartesia",
                     "type": "tts",
                     "models": ["sonic-english"],
-                    "voices": ["sonic-preview", "default-voice", "british-lady"],
+                    "voices": ["sonic-preview", "default-voice", "british-lady", "sonic-english"],
                     "default_model": "sonic-english",
                     "default_voice": "default-voice",
                     "description": "Sub-100ms realistic streaming text-to-speech.",
