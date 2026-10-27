@@ -17,6 +17,7 @@ class AgentCreate(BaseModel):
     tts_config: dict[str, Any] = Field(default_factory=dict)
     silence_timeout_s: int = Field(default=15, ge=1, le=120)
     max_duration_s: int = Field(default=600, ge=10, le=7200)
+    tool_ids: list[str] = Field(default_factory=list)
 
 
 class AgentUpdate(BaseModel):
@@ -30,6 +31,7 @@ class AgentUpdate(BaseModel):
     tts_config: dict[str, Any] | None = None
     silence_timeout_s: int | None = Field(default=None, ge=1, le=120)
     max_duration_s: int | None = Field(default=None, ge=10, le=7200)
+    tool_ids: list[str] | None = None
 
 
 class AgentVersionResponse(BaseModel):

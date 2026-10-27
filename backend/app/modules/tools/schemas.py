@@ -16,6 +16,16 @@ class ToolCreate(BaseModel):
     outcome_label: str | None = None
 
 
+class ToolUpdate(BaseModel):
+    """Payload to update an existing webhook or transfer tool."""
+
+    name: str | None = None
+    type: str | None = None
+    config: dict[str, Any] | None = None
+    json_schema: dict[str, Any] | None = None
+    outcome_label: str | None = None
+
+
 class ToolResponse(BaseModel):
     """Tool definition response."""
 

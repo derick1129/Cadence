@@ -1,4 +1,4 @@
-"""Sessions HTTP router."""
+from typing import Any
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,7 @@ from backend.app.modules.sessions.schemas import (
     WebSessionStartResponse,
 )
 from backend.app.modules.sessions.service import SessionService
+from backend.app.modules.tools import ToolService
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -25,7 +26,12 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 def get_session_service(db: AsyncSession = Depends(get_db)) -> SessionService:
     """Dependency provider returning SessionService wired with current DB session."""
     agent_service = AgentService(repository=AgentRepository(session=db))
-    return SessionService(repository=SessionRepository(session=db), agent_service=agent_service)
+    tool_service = ToolService(session=db)
+    return SessionService(
+        repository=SessionRepository(session=db),
+        agent_service=agent_service,
+        tool_service=tool_service,
+    )
 
 
 @router.post("/web", response_model=WebSessionStartResponse, status_code=status.HTTP_201_CREATED)
@@ -90,3 +96,13 @@ async def get_recording_url(
 ) -> RecordingUrlResponse:
     """Get a short-lived presigned URL to stream or download call audio recording."""
     return await service.get_recording_url(organization_id=org_id, session_id=session_id)
+
+
+@router.get("/{session_id}/tool-calls")
+async def get_session_tool_calls(
+    session_id: str,
+    org_id: str = Depends(get_current_tenant_id),
+    service: SessionService = Depends(get_session_service),
+) -> list[dict[str, Any]]:
+    """Retrieve audit log of tools executed during a session for the tenant."""
+    return await service.get_tool_calls(organization_id=org_id, session_id=session_id)
